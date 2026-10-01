@@ -25,9 +25,14 @@ public:
 
     void setShowUnmeasured(bool on) {
         if (on == show_unmeasured) return;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
         beginFilterChange();
         show_unmeasured = on;
         endFilterChange(Direction::Rows);
+#else
+        show_unmeasured = on;
+        invalidateRowsFilter();
+#endif
     }
     bool showUnmeasured() const { return show_unmeasured; }
 
