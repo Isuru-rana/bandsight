@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+    getent group bandsight >/dev/null || addgroup --system bandsight
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || true
+        systemctl enable bandsightd.service >/dev/null 2>&1 || true
+        systemctl restart bandsightd.service || true
+    fi
+    echo "bandsight: add yourself to the 'bandsight' group to use the GUI:"
+    echo "    sudo usermod -aG bandsight \$USER   (then log out and back in)"
+fi
+exit 0

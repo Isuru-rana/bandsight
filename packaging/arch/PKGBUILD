@@ -1,0 +1,24 @@
+# Maintainer: Isuru Ranaweera <isururanaweera20@gmail.com>
+pkgname=bandsight
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Per-application network usage monitor for Linux (eBPF daemon + Qt6 GUI), inspired by GlassWire"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Isuru-rana/bandsight"
+license=('GPL-3.0-or-later')
+depends=('sqlite' 'libbpf' 'qt6-base' 'systemd')
+makedepends=('cmake' 'clang' 'bpf' 'pkgconf' 'qt6-charts')
+install=bandsight.install
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -B build -S "$pkgname-$pkgver" \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

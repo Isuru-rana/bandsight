@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Bandsight network usage collector
+Documentation=https://github.com/Isuru-rana/bandsight
+After=network-pre.target time-sync.target
+Wants=network-pre.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=@BANDSIGHT_BINDIR@/bandsightd --db /var/lib/bandsight/bandsight.db
+User=root
+Group=bandsight
+CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_SYS_PTRACE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RuntimeDirectory=bandsightd
+RuntimeDirectoryMode=0750
+StateDirectory=bandsight
+StateDirectoryMode=0770
+UMask=0007
+MemoryMax=128M
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

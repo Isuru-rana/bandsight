@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/icons">
+    <file alias="bandsight.png">../../packaging/icons/hicolor/256x256/apps/bandsight.png</file>
+  </qresource>
+</RCC>

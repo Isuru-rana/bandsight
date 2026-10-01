@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Bandsight
+GenericName=Network Usage Monitor
+Comment=Live and historical per-application network usage
+Exec=@BANDSIGHT_BINDIR@/bandsight
+# Installed into hicolor by CMake, so every theme can resolve it.
+Icon=bandsight
+Terminal=false
+# Network is the one main category; Monitor is an additional one, which the
+# spec requires be paired with a main. Listing System as well made two mains,
+# and desktop-file-validate warns the entry may appear twice in the menu.
+Categories=Network;Monitor;
+Keywords=network;bandwidth;usage;monitor;traffic;
+StartupNotify=true
