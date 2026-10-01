@@ -8,6 +8,7 @@ url="https://github.com/Isuru-rana/bandsight"
 license=('GPL-3.0-or-later')
 depends=('sqlite' 'libbpf' 'qt6-base' 'systemd')
 makedepends=('cmake' 'clang' 'bpf' 'pkgconf' 'qt6-charts')
+options=('!debug')
 install=bandsight.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
