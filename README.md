@@ -8,9 +8,11 @@
 <p align="center"><b>See which apps use your bandwidth on Linux. Always on, kept forever, no packet capture.</b></p>
 
 > [!WARNING]
-> **Bandsight is under active development.** It runs daily on the author's machine,
-> but it is early software (v0.1.x). Expect rough edges, missing features and
-> changes to the database schema between releases. Bug reports are very welcome.
+> **Bandsight is under active development (v0.1.x, pre-1.0).**
+> Tested on Ubuntu 26.04, kernel 7.0, KDE Plasma (Wayland), x86_64. Other distros,
+> kernels and desktops are built in CI but not yet tested at runtime.
+> The SQLite schema and the socket protocol may change between releases.
+> The Connections tab and per-host attribution are not implemented yet.
 
 ---
 
