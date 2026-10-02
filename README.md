@@ -14,6 +14,11 @@
 > The SQLite schema and the socket protocol may change between releases.
 > The Connections tab and per-host attribution are not implemented yet.
 
+<p align="center">
+  <img src="docs/screenshots/graph.png" alt="Bandsight Graph tab: download and upload over 6 hours with totals" width="820">
+  <br><sub>Graph tab: live and historical traffic, 9 time windows, totals and per-interface split.</sub>
+</p>
+
 ---
 
 ## What it is
@@ -73,6 +78,16 @@ time, that is what Bandsight is for.
 - Light and dark aware chart colours
 - Hardened systemd service (narrow capabilities, `ProtectSystem=strict`, `NoNewPrivileges`)
 - Live JSON feed over a Unix socket for your own scripts
+
+## Screenshots
+
+**Usage:** total with download/upload split, apps ranked by usage, timeline of the selected period.
+
+<img src="docs/screenshots/usage.png" alt="Usage tab" width="820">
+
+**Interfaces:** per-interface totals; checkboxes filter the graph. Loopback, VPN and virtual interfaces are hidden by default because their traffic is already counted on the physical interface.
+
+<img src="docs/screenshots/interfaces.png" alt="Interfaces tab" width="820">
 
 ## Requirements
 
