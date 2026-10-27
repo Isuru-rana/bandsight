@@ -72,7 +72,12 @@ int RankedList::rowHeight() const {
 
 // Square, and sized from the text so it tracks the font rather than a constant
 // that only looks right at one scale.
-int RankedList::chipSize() const { return fontMetrics().height(); }
+int RankedList::chipSize() const { return show_chips_ ? fontMetrics().height() : 0; }
+
+void RankedList::setShowChips(bool on) {
+    show_chips_ = on;
+    update();
+}
 
 QSize RankedList::sizeHint() const {
     return {220, qMax(1, int(rows_.size())) * rowHeight()};
@@ -110,12 +115,14 @@ void RankedList::paintEvent(QPaintEvent*) {
 
         // The chip goes first, so the eye has a fixed left edge to run down.
         const int chip = chipSize();
-        const QRect chip_box(0, y, chip, chip);
-        if (out) p.setOpacity(0.35);   // filtered rows recede, chip and all
-        paint_identity_chip(p, chip_box, r.label);
-        if (out) p.setOpacity(1.0);
+        if (show_chips_) {
+            const QRect chip_box(0, y, chip, chip);
+            if (out) p.setOpacity(0.35);   // filtered rows recede, chip and all
+            paint_identity_chip(p, chip_box, r.label);
+            if (out) p.setOpacity(1.0);
+        }
 
-        const int text_x = chip + kChipGap;
+        const int text_x = show_chips_ ? chip + kChipGap : 0;
         const int text_w = width() - value_w - text_x;
 
         p.setPen(out ? t.ink_faint : t.ink);

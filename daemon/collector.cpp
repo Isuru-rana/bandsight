@@ -3,6 +3,7 @@
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+#include <sys/stat.h>
 
 #include <cerrno>
 #include <chrono>
@@ -62,6 +63,12 @@ struct Collector::Impl {
     std::uint64_t drops_since_log = 0;
     bool drop_log_started = false;
     std::chrono::steady_clock::time_point last_drop_log{};
+
+    // sock_dropped rate-limit state, same shape as the events_dropped fields.
+    std::uint64_t sock_drop_total = 0;
+    std::uint64_t sock_drops_since_log = 0;
+    bool sock_drop_log_started = false;
+    std::chrono::steady_clock::time_point last_sock_drop_log{};
 };
 
 Collector::Collector() : impl_(new Impl) {}
@@ -79,6 +86,12 @@ Collector::~Collector() {
         if (impl_->skel) bandsight_bpf__destroy(impl_->skel);
         delete impl_;
     }
+}
+
+std::uint32_t own_netns_inode() {
+    struct stat st {};
+    if (::stat("/proc/self/ns/net", &st) != 0) return 0;
+    return static_cast<std::uint32_t>(st.st_ino);
 }
 
 bool Collector::load() {
@@ -104,6 +117,16 @@ bool Collector::load() {
                          std::strerror(err));
         }
         return false;
+    }
+    // Interface numbers are only meaningful inside one network namespace: a
+    // container's eth0 is commonly ifindex 2, the same number as the host's
+    // first NIC. The kernel program records an interface only for sockets in
+    // this namespace, and needs to be told which one that is before load.
+    impl_->skel->rodata->host_netns_inum = own_netns_inode();
+    if (impl_->skel->rodata->host_netns_inum == 0) {
+        std::fprintf(stderr,
+                     "bandsightd: cannot read /proc/self/ns/net; interface "
+                     "attribution will not exclude containers\n");
     }
     if (const int rc = bandsight_bpf__load(impl_->skel); rc != 0) {
         // bandsight_bpf__load() returns bpf_object__load_skeleton()'s result
@@ -187,16 +210,17 @@ bool Collector::load() {
     return true;
 }
 
-std::vector<std::pair<AppKey, AppVal>> Collector::drain_app() {
-    std::vector<std::pair<AppKey, AppVal>> out;
-    if (degraded_ || !impl_->skel) return out;
-
-    const int fd = bpf_map__fd(impl_->skel->maps.map_app);
+namespace {
+// Shared by drain_app() and drain_sock(): the two maps differ only in their
+// key and value types.
+template <typename K, typename V>
+std::vector<std::pair<K, V>> drain_hash(int fd, const char* what) {
+    std::vector<std::pair<K, V>> out;
     if (fd < 0) return out;
 
     constexpr __u32 kBatch = 512;
-    AppKey keys[kBatch];
-    AppVal vals[kBatch];
+    K keys[kBatch];
+    V vals[kBatch];
 
     // The batch cursor is a bucket index, not a pointer. For BPF_MAP_TYPE_HASH the
     // kernel reads and writes a __u32 through these arguments, so the storage must
@@ -235,9 +259,9 @@ std::vector<std::pair<AppKey, AppVal>> Collector::drain_app() {
             const int err = (rc < 0 && rc != -1) ? -rc : errno;
             if (err != ENOENT) {
                 std::fprintf(stderr,
-                             "bandsightd: map drain failed (%s); some byte counts "
+                             "bandsightd: %s drain failed (%s); some byte counts "
                              "for this interval were lost\n",
-                             std::strerror(err));
+                             what, std::strerror(err));
             }
             break;
         }
@@ -247,6 +271,45 @@ std::vector<std::pair<AppKey, AppVal>> Collector::drain_app() {
     }
 
     return out;
+}
+}  // namespace
+
+std::vector<std::pair<AppKey, AppVal>> Collector::drain_app() {
+    if (degraded_ || !impl_->skel) return {};
+    return drain_hash<AppKey, AppVal>(bpf_map__fd(impl_->skel->maps.map_app), "map_app");
+}
+
+std::vector<std::pair<SockKey, SockVal>> Collector::drain_sock() {
+    if (degraded_ || !impl_->skel) return {};
+    check_sock_dropped();
+    return drain_hash<SockKey, SockVal>(bpf_map__fd(impl_->skel->maps.map_sock), "map_sock");
+}
+
+void Collector::check_sock_dropped() {
+    const int fd = bpf_map__fd(impl_->skel->maps.sock_dropped);
+    if (fd < 0) return;
+
+    const __u32 key = 0;
+    __u64 total = 0;
+    if (bpf_map_lookup_elem(fd, &key, &total) != 0) return;
+    if (total <= impl_->sock_drop_total) return;  // nothing new since the last read
+
+    impl_->sock_drops_since_log += total - impl_->sock_drop_total;
+    impl_->sock_drop_total = total;
+
+    // Same rate limit as check_dropped_events: the first time immediately, then
+    // at most once a minute with everything that accumulated in between.
+    const auto now = std::chrono::steady_clock::now();
+    if (!impl_->sock_drop_log_started ||
+        now - impl_->last_sock_drop_log >= std::chrono::minutes(1)) {
+        std::fprintf(stderr,
+                     "bandsightd: %llu bytes from full socket map - host breakdown "
+                     "incomplete\n",
+                     static_cast<unsigned long long>(impl_->sock_drops_since_log));
+        impl_->sock_drop_log_started = true;
+        impl_->last_sock_drop_log = now;
+        impl_->sock_drops_since_log = 0;
+    }
 }
 
 void Collector::check_dropped_events() {

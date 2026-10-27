@@ -21,6 +21,16 @@ struct AppDelta {
     std::uint64_t tx = 0;
 };
 
+// Bytes one application exchanged with one peer over one interface. ip is the
+// canonical text form (see format_peer); "" is the no-peer bucket.
+struct HostDelta {
+    std::int64_t app_id = 0;
+    int ifindex = 0;
+    std::string ip;
+    std::uint64_t rx = 0;
+    std::uint64_t tx = 0;
+};
+
 class Store {
 public:
     // path may be ":memory:" for tests. Throws std::runtime_error on failure.
@@ -42,10 +52,14 @@ public:
     std::string get_config(const std::string& key, const std::string& fallback);
     void set_config(const std::string& key, const std::string& value);
 
-    // Writes one res=1 bucket. Single transaction. Repeat writes for the same ts
-    // accumulate, so a restart mid-second cannot lose or duplicate a row.
+    // Writes one res=1 bucket for ifaces/apps. Host deltas go to the res=60
+    // bucket containing ts: host rows are minute-grained (there is no res=1 host
+    // tier), and the current minute is written live so the GUI need not wait for
+    // a rollup. Single transaction. Repeat writes for the same ts accumulate, so
+    // a restart mid-second cannot lose or duplicate a row.
     void write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces,
-                       const std::vector<AppDelta>& apps);
+                       const std::vector<AppDelta>& apps,
+                       const std::vector<HostDelta>& hosts = {});
 
     sqlite3* handle() { return db_; }
 

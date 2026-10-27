@@ -49,6 +49,12 @@ public:
     // one of them was filtered out of a total elsewhere.
     int rowAt(const QPoint& pos) const;
 
+    // The identity chip is an application's initial. Lists of things that have
+    // no meaningful initial - IP addresses - turn it off rather than show a
+    // digit coloured as if it were an identity. On by default.
+    void setShowChips(bool on);
+    bool showChips() const { return show_chips_; }
+
 signals:
     void rowClicked(const QString& key);
 
@@ -64,6 +70,7 @@ private:
 
     QVector<Row> rows_;
     QSet<QString> excluded_;
+    bool show_chips_ = true;
 };
 
 }  // namespace bandsight::gui

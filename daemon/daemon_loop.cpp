@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "daemon_loop.h"
 
+#include <algorithm>
+
+#include "host_accounting.h"
+
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -120,7 +124,8 @@ void DaemonLoop::log_tick_error(const std::string& what) {
 // timestamps would need a second write path and would reintroduce rows for
 // buckets the rollup may already have closed.
 void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
-                                  const std::vector<AppDelta>& apps) {
+                                  const std::vector<AppDelta>& apps,
+                                  const std::vector<HostDelta>& hosts) {
     // Roughly a minute of a busy machine. Past this the database is not coming
     // back on its own, and holding more only moves the failure from "some data
     // lost" to "the collector was OOM-killed".
@@ -134,12 +139,75 @@ void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
         if (pending_apps_.size() >= kMaxPending) { ++pending_dropped_; continue; }
         pending_apps_.push_back(d);
     }
+    // Hosts merge into an existing (app, interface, host) entry rather than
+    // appending: one tick carries hundreds of pairs, so appending filled the cap
+    // in seconds and dropped host bytes long before app bytes.
+    for (const auto& d : hosts) {
+        auto same = std::find_if(pending_hosts_.begin(), pending_hosts_.end(),
+                                 [&](const HostDelta& h) {
+                                     return h.app_id == d.app_id && h.ifindex == d.ifindex &&
+                                            h.ip == d.ip;
+                                 });
+        if (same != pending_hosts_.end()) {
+            same->rx += d.rx;
+            same->tx += d.tx;
+            continue;
+        }
+        if (pending_hosts_.size() >= kMaxPending) { ++pending_dropped_; continue; }
+        pending_hosts_.push_back(d);
+    }
     if (pending_dropped_ > 0) {
         std::fprintf(stderr,
                      "bandsightd: %lld drained deltas discarded; the database has "
                      "been unwritable long enough to fill the retry buffer\n",
                      static_cast<long long>(pending_dropped_));
     }
+}
+
+std::optional<std::int64_t> DaemonLoop::app_id_for(std::uint32_t tgid,
+                                                   std::uint64_t cgroup_id) {
+    const std::string exe_path = resolver_.exe_for(tgid);
+
+    // The id is looked up once per executable per daemon lifetime. Two
+    // consequences worth stating rather than discovering: cgroup_hint
+    // keeps the cgroup of the FIRST process seen for that executable
+    // instead of the most recent - both are arbitrary, and it is a hint -
+    // and a renamed application (app_name_from_exe changing, as U3's fix
+    // did) is rewritten on the next daemon start rather than the next
+    // tick, since the memo starts empty.
+    auto cached = app_ids_.find(exe_path);
+    if (cached != app_ids_.end()) return cached->second;
+
+    const std::string name = app_name_from_exe(exe_path);
+    const std::string cg = resolver_.cgroup_path(tgid, cgroup_id);
+    std::int64_t app_id = 0;
+    try {
+        app_id = store_.upsert_app(exe_path, name, cg);
+    } catch (const std::exception& e) {
+        // An application first seen while the database is unwritable has no
+        // id, and a delta cannot be retained without one - so THIS tick's bytes
+        // for THIS application are lost, and that is the one loss the retry
+        // buffer cannot cover. Applications already in the memo are
+        // unaffected, which is nearly all of them by the time a disk fills.
+        log_tick_error(e.what());
+        return std::nullopt;
+    }
+    app_ids_.emplace(exe_path, app_id);
+    ++app_writes_;
+    return app_id;
+}
+
+int DaemonLoop::clamp_ifindex(std::uint32_t ifindex) const {
+    // The BPF hooks fire for every process on the machine in every
+    // network namespace, but `ifaces`/prev_ only ever holds ifindexes
+    // this daemon has observed via rtnetlink in its own netns. An
+    // ifindex from a container's netns either violates the app_samples
+    // foreign key (crash) or, worse, collides with an unrelated host
+    // interface of the same number (silent misattribution). The kernel
+    // program now reports 0 for any socket outside this daemon's netns
+    // (host_netns_inum), which closes the collision; this clamp remains for
+    // an ifindex the daemon has not observed yet.
+    return prev_.count(static_cast<int>(ifindex)) ? static_cast<int>(ifindex) : 0;
 }
 
 void DaemonLoop::tick(std::int64_t now) {
@@ -220,50 +288,17 @@ void DaemonLoop::tick(std::int64_t now) {
         // the collector is degraded, so this is a no-op if BPF never attached.
         std::vector<AppDelta> app_deltas;
         for (const auto& [key, val] : collector_.drain_app()) {
-            const std::string exe_path = resolver_.exe_for(key.tgid);
-
-            // The id is looked up once per executable per daemon lifetime. Two
-            // consequences worth stating rather than discovering: cgroup_hint
-            // keeps the cgroup of the FIRST process seen for that executable
-            // instead of the most recent - both are arbitrary, and it is a hint -
-            // and a renamed application (app_name_from_exe changing, as U3's fix
-            // did) is rewritten on the next daemon start rather than the next
-            // tick, since the memo starts empty.
-            std::int64_t app_id;
-            auto cached = app_ids_.find(exe_path);
-            if (cached != app_ids_.end()) {
-                app_id = cached->second;
-            } else {
-                const std::string name = app_name_from_exe(exe_path);
-                const std::string cg = resolver_.cgroup_path(key.tgid, key.cgroup_id);
-                try {
-                    app_id = store_.upsert_app(exe_path, name, cg);
-                } catch (const std::exception& e) {
-                    // An application first seen while the database is unwritable
-                    // has no id, and a delta cannot be retained without one - so
-                    // THIS tick's bytes for THIS application are lost, and that
-                    // is the one loss the retry buffer cannot cover. Applications
-                    // already in the memo are unaffected, which is nearly all of
-                    // them by the time a disk fills.
-                    log_tick_error(e.what());
-                    continue;
-                }
-                app_ids_.emplace(exe_path, app_id);
-                ++app_writes_;
-            }
-
-            // The BPF hooks fire for every process on the machine in every
-            // network namespace, but `ifaces`/prev_ only ever holds ifindexes
-            // this daemon has observed via rtnetlink in its own netns. An
-            // ifindex from a container's netns either violates the app_samples
-            // foreign key (crash) or, worse, collides with an unrelated host
-            // interface of the same number (silent misattribution). Clamp to
-            // the sentinel unless this daemon has actually seen that ifindex.
-            const int ifx = prev_.count(static_cast<int>(key.ifindex))
-                                ? static_cast<int>(key.ifindex)
-                                : 0;
-            app_deltas.push_back({app_id, ifx, val.rx, val.tx});
+            const auto app_id = app_id_for(key.tgid, key.cgroup_id);
+            if (!app_id) continue;
+            app_deltas.push_back({*app_id, clamp_ifindex(key.ifindex), val.rx, val.tx});
         }
+
+        // Per-socket deltas for the Hosts column, resolved through the same app
+        // and interface paths as above.
+        std::vector<HostDelta> host_deltas = aggregate_hosts(
+            collector_.drain_sock(),
+            [this](const SockVal& v) { return app_id_for(v.tgid, v.cgroup_id); },
+            [this](std::uint32_t ifx) { return clamp_ifindex(ifx); });
 
         // Drop identities for tgids that exited before this drain - now that the
         // drain above has had a chance to attribute their last bytes.
@@ -272,11 +307,13 @@ void DaemonLoop::tick(std::int64_t now) {
         // Anything a previous tick drained but could not write goes in with this
         // tick's data (I6). Merged before the write, so one failure does not
         // fork the retry path from the normal one.
-        if (!pending_ifaces_.empty() || !pending_apps_.empty()) {
+        if (!pending_ifaces_.empty() || !pending_apps_.empty() || !pending_hosts_.empty()) {
             deltas.insert(deltas.end(), pending_ifaces_.begin(), pending_ifaces_.end());
             app_deltas.insert(app_deltas.end(), pending_apps_.begin(), pending_apps_.end());
+            host_deltas.insert(host_deltas.end(), pending_hosts_.begin(), pending_hosts_.end());
             pending_ifaces_.clear();
             pending_apps_.clear();
+            pending_hosts_.clear();
         }
 
         // Written once per tick so a tick is one transaction.
@@ -293,13 +330,13 @@ void DaemonLoop::tick(std::int64_t now) {
         // earlier version of this comment argued exactly that - the two changes
         // have to be read together.
         bool stored = true;
-        if (!deltas.empty() || !app_deltas.empty()) {
+        if (!deltas.empty() || !app_deltas.empty() || !host_deltas.empty()) {
             try {
-                store_.write_samples(now, deltas, app_deltas);
+                store_.write_samples(now, deltas, app_deltas, host_deltas);
             } catch (const std::exception& e) {
                 // drain_app() already deleted these from the kernel map, so
                 // dropping them here would destroy them outright.
-                retain_unwritten(deltas, app_deltas);
+                retain_unwritten(deltas, app_deltas, host_deltas);
                 stored = false;
                 log_tick_error(e.what());
             }

@@ -8,11 +8,11 @@
 <p align="center"><b>See which apps use your bandwidth on Linux. Always on, kept forever, no packet capture.</b></p>
 
 > [!WARNING]
-> **Bandsight is under active development (v0.1.x, pre-1.0).**
+> **Bandsight is under active development (v0.2.x, pre-1.0).**
 > Tested on Ubuntu 26.04, kernel 7.0, KDE Plasma (Wayland), x86_64. Other distros,
 > kernels and desktops are built in CI but not yet tested at runtime.
 > The SQLite schema and the socket protocol may change between releases.
-> The Connections tab and per-host attribution are not implemented yet.
+> The Connections tab and hostname (DNS) attribution are not implemented yet.
 
 <p align="center">
   <img src="docs/screenshots/graph.png" alt="Bandsight Graph tab: download and upload over 6 hours with totals" width="820">
@@ -61,7 +61,7 @@ are the things I needed that Sniffnet does not do, and that Bandsight does:
 | Tray icon with live rates | No | Yes (StatusNotifier) |
 | Apps that start and exit quickly | | Caught via exec events; apps already running at daemon start are seeded from `/proc` |
 
-To be fair, Sniffnet has plenty that Bandsight does not: per-host and per-country
+To be fair, Sniffnet has plenty that Bandsight does not: hostname and per-country
 views, protocol and service detection, notifications, PCAP import/export and themes.
 If you want to inspect traffic, use Sniffnet. If you want to account for it over
 time, that is what Bandsight is for.
@@ -73,6 +73,7 @@ time, that is what Bandsight is for.
   loopback and virtual interfaces are not double counted)
 - Traffic graph with 9 windows: 1 min, 5 min, 30 min, 1 h, 6 h, 12 h, 24 h, 7 days, 30 days
 - Usage view: total donut with download/upload split, apps ranked by usage, timeline
+- Hosts column: bytes per remote IP address, per app (hostnames are not resolved yet)
 - Data cap with a billing cycle start day and a projection to the end of the cycle
 - Tray icon showing current rates; closing the window hides it to the tray
 - Light and dark aware chart colours
@@ -81,7 +82,7 @@ time, that is what Bandsight is for.
 
 ## Screenshots
 
-**Usage:** total with download/upload split, apps ranked by usage, timeline of the selected period.
+**Usage:** total with download/upload split, apps ranked by usage, timeline of the selected period. (Screenshot predates the Hosts column.)
 
 <img src="docs/screenshots/usage.png" alt="Usage tab" width="820">
 
@@ -206,8 +207,12 @@ for example `{"cmd":"ping"}`.
 1. **Per-app totals read about 5 to 10% below interface totals.** eBPF counts payload
    bytes at the socket layer, the interface counts wire bytes including headers and
    retransmits. GlassWire shows the same gap for the same reason.
-2. **No per-host or per-domain view yet.** The eBPF program does not record remote
-   addresses today. It is planned.
+2. **Hosts are IP addresses, not names.** The Hosts column records bytes per remote
+   address; hostnames (DNS) are planned. Host data is kept at minute resolution, so
+   windows under one hour are prorated from whole minutes.
+   Upgrading from 0.1.x: per-app history recorded before 0.2.0 may include traffic
+   between containers, wrongly credited to a physical interface. Interface totals,
+   the graph and the data cap were never affected.
 3. **Kernel updates can break the per-app hooks.** If attach points drift, the daemon
    falls back to interface totals only and logs which hook failed.
 4. **The 5 minute view starts empty** after launching the GUI. It is drawn from the
@@ -219,7 +224,7 @@ for example `{"cmd":"ping"}`.
 ## Roadmap
 
 - Connections tab (live list of sockets per app)
-- Per-host and per-domain attribution
+- Hostname (DNS) attribution and LAN/WAN split
 - Per-app blocking (opt-in, after monitoring is solid)
 - AUR package
 

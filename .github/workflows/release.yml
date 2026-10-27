@@ -63,8 +63,8 @@ jobs:
       - name: Build with PKGBUILD
         run: |
           useradd -m builder
-          mkdir -p /tmp/pkg/src/bandsight-0.1.0
-          cp -r . /tmp/pkg/src/bandsight-0.1.0/
+          mkdir -p /tmp/pkg/src/bandsight-0.2.0
+          cp -r . /tmp/pkg/src/bandsight-0.2.0/
           cp packaging/arch/PKGBUILD packaging/arch/bandsight.install /tmp/pkg/
           cd /tmp/pkg
           # Build from the checked-out tree instead of the release tarball.

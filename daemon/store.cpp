@@ -8,6 +8,8 @@
 #include <cstring>
 #include <stdexcept>
 
+#include "time_buckets.h"
+
 namespace bandsight {
 namespace {
 
@@ -16,7 +18,10 @@ namespace {
 // tailscaled restart, docker0 recreation, a USB tether replug all reuse a
 // name at a new ifindex), and upsert_iface only handles ON CONFLICT(id). A
 // name collision on the old schema aborted the insert and crashed the daemon.
-constexpr int kSchemaVersion = 2;
+//
+// v3: app_host_samples gained iface_id, so host bytes obey the same accounting
+// rule (only physical and wifi interfaces count) as every other total.
+constexpr int kSchemaVersion = 3;
 
 const char* kSchema = R"SQL(
 CREATE TABLE IF NOT EXISTS apps(
@@ -58,10 +63,11 @@ CREATE TABLE IF NOT EXISTS app_host_samples(
   res INTEGER NOT NULL,
   ts INTEGER NOT NULL,
   app_id INTEGER NOT NULL REFERENCES apps(id),
+  iface_id INTEGER NOT NULL REFERENCES ifaces(id),
   host_id INTEGER NOT NULL REFERENCES hosts(id),
   rx INTEGER NOT NULL,
   tx INTEGER NOT NULL,
-  PRIMARY KEY(res, ts, app_id, host_id)
+  PRIMARY KEY(res, ts, app_id, iface_id, host_id)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS rollup_state(res INTEGER PRIMARY KEY, last_ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -123,6 +129,17 @@ void Store::migrate() {
     exec("INSERT OR IGNORE INTO config(key, value) VALUES('schema_version', '" +
          std::to_string(kSchemaVersion) + "')");
     exec("COMMIT");
+
+    // v2 -> v3. app_host_samples gained iface_id. No daemon before v3 ever wrote
+    // that table, so it is dropped and recreated rather than copied: there is
+    // nothing in it to preserve, and every other table is untouched.
+    if (schema_version() == 2) {
+        exec("BEGIN");
+        exec("DROP TABLE app_host_samples");
+        exec(kSchema);   // IF NOT EXISTS: recreates only what is missing
+        exec("UPDATE config SET value='3' WHERE key='schema_version'");
+        exec("COMMIT");
+    }
 
     // INSERT OR IGNORE above means an existing database keeps whatever version
     // it already had, so a mismatch reaches this point silently and only shows
@@ -229,7 +246,8 @@ void Store::upsert_iface(int ifindex, const std::string& name, const std::string
 }
 
 void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces,
-                          const std::vector<AppDelta>& apps) {
+                          const std::vector<AppDelta>& apps,
+                          const std::vector<HostDelta>& hosts) {
     exec("BEGIN");
     try {
         sqlite3_stmt* si = nullptr;
@@ -274,6 +292,55 @@ void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces
             }
         }
         sqlite3_finalize(sa);
+
+        if (!hosts.empty()) {
+            sqlite3_stmt* sh = nullptr;
+            if (sqlite3_prepare_v2(db_,
+                    "INSERT INTO hosts(ip, first_seen, last_seen) VALUES(?,?,?) "
+                    "ON CONFLICT(ip) DO UPDATE SET last_seen=excluded.last_seen RETURNING id",
+                    -1, &sh, nullptr) != SQLITE_OK) {
+                throw std::runtime_error("hosts prepare");
+            }
+            sqlite3_stmt* ss = nullptr;
+            if (sqlite3_prepare_v2(db_,
+                    "INSERT INTO app_host_samples(res,ts,app_id,iface_id,host_id,rx,tx) "
+                    "VALUES(60,?,?,?,?,?,?) "
+                    "ON CONFLICT(res,ts,app_id,iface_id,host_id) "
+                    "DO UPDATE SET rx=rx+excluded.rx, tx=tx+excluded.tx",
+                    -1, &ss, nullptr) != SQLITE_OK) {
+                sqlite3_finalize(sh);
+                throw std::runtime_error("app_host_samples prepare");
+            }
+            const std::int64_t minute = bucket_start(ts, kRes1m);
+            for (const auto& h : hosts) {
+                sqlite3_reset(sh);
+                sqlite3_bind_text(sh, 1, h.ip.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(sh, 2, ts);
+                sqlite3_bind_int64(sh, 3, ts);
+                std::int64_t host_id = 0;
+                if (sqlite3_step(sh) == SQLITE_ROW) host_id = sqlite3_column_int64(sh, 0);
+                sqlite3_reset(sh);   // RETURNING: finish the statement before reuse
+                if (host_id == 0) {
+                    sqlite3_finalize(sh);
+                    sqlite3_finalize(ss);
+                    throw std::runtime_error("hosts upsert returned no id");
+                }
+                sqlite3_reset(ss);
+                sqlite3_bind_int64(ss, 1, minute);
+                sqlite3_bind_int64(ss, 2, h.app_id);
+                sqlite3_bind_int(ss, 3, h.ifindex);
+                sqlite3_bind_int64(ss, 4, host_id);
+                sqlite3_bind_int64(ss, 5, static_cast<sqlite3_int64>(h.rx));
+                sqlite3_bind_int64(ss, 6, static_cast<sqlite3_int64>(h.tx));
+                if (sqlite3_step(ss) != SQLITE_DONE) {
+                    sqlite3_finalize(sh);
+                    sqlite3_finalize(ss);
+                    throw std::runtime_error("app_host_samples insert");
+                }
+            }
+            sqlite3_finalize(sh);
+            sqlite3_finalize(ss);
+        }
     } catch (...) {
         // SQLite auto-rolls-back on SQLITE_FULL, so this ROLLBACK then fails
         // with "no transaction is active" - and THAT became the reported error,

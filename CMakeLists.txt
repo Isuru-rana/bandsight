@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.25)
-project(bandsight LANGUAGES CXX C VERSION 0.1.0)
+project(bandsight LANGUAGES CXX C VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,7 @@ add_library(bandsight_core STATIC
     daemon/collector.cpp
     daemon/json_frame.cpp
     daemon/unix_socket_control.cpp
+    daemon/host_accounting.cpp
 )
 target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon)
 target_link_libraries(bandsight_core PUBLIC PkgConfig::SQLITE3 PkgConfig::LIBBPF)

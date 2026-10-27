@@ -34,6 +34,12 @@ public slots:
     void queryIfaceTotalsRange(qint64 from, qint64 to, int res);
     void queryAppTotalsRange(qint64 from, qint64 to, int res);
 
+    // (app, host) pairs for the Hosts column. Host rows are minute-grained, so a
+    // seconds-tier window or selection is widened to whole minutes, and the
+    // current minute - written live by the daemon - is included.
+    void queryHostTotals(Window w, qint64 now);
+    void queryHostTotalsRange(qint64 from, qint64 to, int res);
+
 signals:
     // Both carry the path they refer to. Without it a caller cannot tell a reply
     // to its current open from a reply to one it superseded, which is B5: two
@@ -43,12 +49,22 @@ signals:
     void series(Window w, QVector<SeriesPoint> points);
     void ifaceTotals(QVector<IfaceTotal> totals);
     void appTotals(QVector<AppTotal> totals);
+    // collected=false: the database predates host collection (no iface_id
+    // column) - an old daemon, not an idle network. since: when host recording
+    // began, if that is inside the period (0 otherwise) - app history is older
+    // than host history, so the two cannot be compared before it.
+    void hostPairs(QVector<AppHostTotal> pairs, bool collected, qint64 since);
     void quota(QuotaInfo info);
 
 private:
     // Drops our QSqlDatabase copy and unregisters the connection name, in that
     // order - removeDatabase() warns loudly if any copy is still alive.
     void closeDb();
+
+    // The host query proper. [from, to] is the period asked for; data_end is
+    // where the newest host row's data actually ends. Seconds-tier periods are
+    // prorated from whole-minute rows to the period's length.
+    void emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res);
 
     // The config table is read here, never written - the GUI's handle is
     // read-only and writes go through the daemon's set_config command.

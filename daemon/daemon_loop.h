@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -75,10 +76,19 @@ private:
     // permanently unwritable - a full disk, C4 - must degrade by dropping data
     // with a count in the log, not by growing until the daemon is OOM-killed.
     void retain_unwritten(const std::vector<IfaceDelta>& ifaces,
-                          const std::vector<AppDelta>& apps);
+                          const std::vector<AppDelta>& apps,
+                          const std::vector<HostDelta>& hosts = {});
+
+    // The app id for a process, memoised by executable - the one resolution both
+    // the app drain and the socket drain use, so a socket is credited to exactly
+    // the app row its process's bytes are. nullopt when the row cannot be written.
+    std::optional<std::int64_t> app_id_for(std::uint32_t tgid, std::uint64_t cgroup_id);
+    // An ifindex this daemon has seen in its own netns, else the sentinel 0.
+    int clamp_ifindex(std::uint32_t ifindex) const;
 
     std::vector<IfaceDelta> pending_ifaces_;
     std::vector<AppDelta> pending_apps_;
+    std::vector<HostDelta> pending_hosts_;
     std::int64_t pending_dropped_ = 0;
 
     // Written rows that have not changed since we last wrote them. upsert_iface
@@ -103,12 +113,15 @@ public:
     std::int64_t appWritesForTest() const { return app_writes_; }
     std::size_t pendingIfaceDeltasForTest() const { return pending_ifaces_.size(); }
     std::size_t pendingAppDeltasForTest() const { return pending_apps_.size(); }
+    std::size_t pendingHostDeltasForTest() const { return pending_hosts_.size(); }
     std::int64_t pendingDroppedForTest() const { return pending_dropped_; }
+    int clampIfindexForTest(std::uint32_t i) const { return clamp_ifindex(i); }
     // Test-only: reaching the retry path through tick() needs real traffic
     // between two real netlink reads, which is not something a test can arrange.
     void retainForTest(const std::vector<IfaceDelta>& ifaces,
-                       const std::vector<AppDelta>& apps) {
-        retain_unwritten(ifaces, apps);
+                       const std::vector<AppDelta>& apps,
+                       const std::vector<HostDelta>& hosts = {}) {
+        retain_unwritten(ifaces, apps, hosts);
     }
 
 private:

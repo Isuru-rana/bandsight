@@ -40,6 +40,7 @@ void register_metatypes() {
         qRegisterMetaType<QVector<SeriesPoint>>();
         qRegisterMetaType<QVector<IfaceTotal>>();
         qRegisterMetaType<QVector<AppTotal>>();
+        qRegisterMetaType<QVector<AppHostTotal>>();
         qRegisterMetaType<QuotaInfo>();
         qRegisterMetaType<QSet<int>>("QSet<int>");
         qRegisterMetaType<LiveClient::State>();
@@ -197,6 +198,10 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(history_, &HistoryStore::appTotals, this,
             [this](const QVector<AppTotal>& totals) {
                 usage_->setTotals(totals);
+            });
+    connect(history_, &HistoryStore::hostPairs, this,
+            [this](const QVector<AppHostTotal>& pairs, bool collected, qint64 since) {
+                usage_->setHostPairs(pairs, collected, since);
             });
 
     // --- widgets ------------------------------------------------------------
@@ -397,9 +402,11 @@ void MainWindow::refreshFromHistory() {
             // how it is counted, so nothing downstream needs to know one exists.
             h->queryIfaceTotalsRange(from, to, res);
             h->queryAppTotalsRange(from, to, res);
+            h->queryHostTotalsRange(from, to, res);
         } else {
             h->queryIfaceTotals(w, now);
             h->queryAppTotals(w, now);
+            h->queryHostTotals(w, now);
         }
         // Independent of the graph's window and of any selection: a cap runs on
         // its own cycle and is not something the timeline can narrow.

@@ -33,7 +33,8 @@ std::int64_t earliest_src_ts(sqlite3* db, int src_res) {
     sqlite3_prepare_v2(db,
         "SELECT MIN(t) FROM ("
         "  SELECT MIN(ts) AS t FROM iface_samples WHERE res=?1"
-        "  UNION ALL SELECT MIN(ts) AS t FROM app_samples WHERE res=?1)",
+        "  UNION ALL SELECT MIN(ts) AS t FROM app_samples WHERE res=?1"
+        "  UNION ALL SELECT MIN(ts) AS t FROM app_host_samples WHERE res=?1)",
         -1, &st, nullptr);
     sqlite3_bind_int(st, 1, src_res);
     std::int64_t v = 0;
@@ -67,14 +68,17 @@ void roll_one_bucket(sqlite3* db, int src_res, int dst_res, std::int64_t bucket,
          "WHERE res=" + s + " AND ts>=" + lo + " AND ts<" + hi +
          " GROUP BY app_id,iface_id");
 
-    // app_host_samples only exists at the 3600 and 86400 tiers.
+    // Host rows exist at res=60 (written live by the daemon, never rolled up
+    // from res=1) and above. dst=60 is deliberately excluded: the delete below
+    // would wipe the live minute rows, which have no res=1 source.
     if (dst_res == kRes1h || dst_res == kRes1d) {
         exec(db, "DELETE FROM app_host_samples WHERE res=" + d + " AND ts=" + b);
         exec(db,
-             "INSERT INTO app_host_samples(res,ts,app_id,host_id,rx,tx) "
-             "SELECT " + d + "," + b + ",app_id,host_id,SUM(rx),SUM(tx) FROM app_host_samples "
+             "INSERT INTO app_host_samples(res,ts,app_id,iface_id,host_id,rx,tx) "
+             "SELECT " + d + "," + b + ",app_id,iface_id,host_id,SUM(rx),SUM(tx) "
+             "FROM app_host_samples "
              "WHERE res=" + s + " AND ts>=" + lo + " AND ts<" + hi +
-             " GROUP BY app_id,host_id");
+             " GROUP BY app_id,iface_id,host_id");
     }
 }
 
@@ -127,7 +131,10 @@ void enforce_retention(sqlite3* db, std::int64_t now) {
             exec(db, "DELETE FROM iface_samples WHERE res=" + res + " AND ts<" + cutoff);
             exec(db, "DELETE FROM app_samples WHERE res=" + res + " AND ts<" + cutoff);
         }
-        // app_host_samples: 3600 tier keeps 90 days, 86400 forever.
+        // Host rows: res=60 two days (the 24 h window plus a margin), res=3600
+        // ninety days, res=86400 forever.
+        exec(db, "DELETE FROM app_host_samples WHERE res=" + std::to_string(kRes1m) +
+                     " AND ts<" + std::to_string(now - 2LL * 86400));
         exec(db, "DELETE FROM app_host_samples WHERE res=" + std::to_string(kRes1h) +
                      " AND ts<" + std::to_string(now - 90LL * 86400));
     } catch (...) {

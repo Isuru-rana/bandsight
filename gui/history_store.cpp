@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "history_store.h"
 
+#include <algorithm>
+#include <cmath>
+
+#include <QDateTime>
 #include <QDebug>
 #include <QHash>
 #include <QSqlError>
@@ -211,6 +215,97 @@ void HistoryStore::queryAppTotalsRange(qint64 from, qint64 to, int res) {
                    << "table:" << q.lastError().text();
     }
     emit appTotals(out);
+}
+
+namespace {
+// Host rows are minute-grained at best (no res=1 host tier), so the seconds
+// tier maps to minutes. Longer tiers match the apps query exactly.
+int host_res(int res) { return res == 1 ? 60 : res; }
+}  // namespace
+
+void HistoryStore::queryHostTotals(Window w, qint64 now) {
+    const WindowSpec spec = window_spec(w);
+    // To `now`, not grid_end: the daemon writes the current minute live, so
+    // stopping at the last closed bucket would hide up to a minute of hosts.
+    emitHostPairs(now - spec.range_s, now, now, spec.res);
+}
+
+void HistoryStore::queryHostTotalsRange(qint64 from, qint64 to, int res) {
+    // A selection's last minute row holds that whole minute - unless it is the
+    // live minute, which only holds up to now.
+    const int hres = host_res(res);
+    const qint64 data_end =
+        std::min<qint64>(bandsight::bucket_next(bandsight::bucket_start(to, hres), hres),
+                         QDateTime::currentSecsSinceEpoch());
+    emitHostPairs(from, to, std::max(data_end, to), res);
+}
+
+void HistoryStore::emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res) {
+    const int hres = host_res(res);
+    const qint64 start = bandsight::bucket_start(from, hres);   // widen to whole buckets
+
+    // Detected by column, not by version number: what matters is whether the
+    // table this query reads has the shape it reads.
+    QSqlQuery probe(db_);
+    const bool collected =
+        probe.exec(QStringLiteral(
+            "SELECT COUNT(*) FROM pragma_table_info('app_host_samples') WHERE name='iface_id'"))
+        && probe.next() && probe.value(0).toInt() == 1;
+    if (!collected) {
+        emit hostPairs({}, false, 0);
+        return;
+    }
+
+    // Recording begins when a v3 daemon is installed; app history is older.
+    qint64 since = 0;
+    if (probe.exec(QStringLiteral("SELECT MIN(ts) FROM app_host_samples")) && probe.next() &&
+        !probe.value(0).isNull()) {
+        const qint64 first = probe.value(0).toLongLong();
+        if (first > start) since = first;
+    }
+
+    // Seconds-tier periods read whole-minute rows, which span more than the
+    // period (up to twice, on the 1-minute window). Unscaled, excluding one of
+    // two equal hosts would remove most of the headline. Prorating assumes an
+    // even rate within the span; it is an estimate, and only these short
+    // periods need it - longer ones read the same tier as the apps.
+    double scale = 1.0;
+    if (hres != res && data_end > start) {
+        scale = std::clamp(double(to - from) / double(data_end - start), 0.0, 1.0);
+    }
+
+    QVector<AppHostTotal> out;
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral(
+        "SELECT a.id, a.exe, a.name, h.id, h.ip, h.hostname, SUM(s.rx), SUM(s.tx) "
+        "FROM app_host_samples s "
+        "JOIN apps a ON a.id = s.app_id "
+        "JOIN hosts h ON h.id = s.host_id "
+        "JOIN ifaces i ON i.id = s.iface_id "
+        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi') "
+        "GROUP BY a.id, h.id HAVING SUM(s.rx) + SUM(s.tx) > 0"));
+    q.addBindValue(hres);
+    q.addBindValue(start);
+    q.addBindValue(to);
+    if (q.exec()) {
+        while (q.next()) {
+            AppHostTotal t;
+            t.app_id = q.value(0).toInt();
+            t.exe = q.value(1).toString();
+            t.app_name = q.value(2).toString();
+            t.host_id = q.value(3).toInt();
+            t.ip = q.value(4).toString();
+            t.hostname = q.value(5).toString();
+            t.rx = quint64(std::llround(double(q.value(6).toULongLong()) * scale));
+            t.tx = quint64(std::llround(double(q.value(7).toULongLong()) * scale));
+            out.push_back(t);
+        }
+    } else {
+        // Empty on failure, like the other totals queries - see queryIfaceTotals.
+        qWarning() << "bandsight: host totals query failed, emitting an empty"
+                   << "table:" << q.lastError().text();
+    }
+    emit hostPairs(out, true, since);
 }
 
 namespace {

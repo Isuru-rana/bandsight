@@ -40,6 +40,28 @@ struct AppTotal {
     }
 };
 
+// Bytes one application exchanged with one remote host over the period. The
+// Hosts column sums these per host; they stay pairs so an app exclusion and a
+// host exclusion can subtract shared bytes once.
+struct AppHostTotal {
+    int app_id = 0; QString exe; QString app_name;
+    int host_id = 0; QString ip; QString hostname;
+    quint64 rx = 0; quint64 tx = 0;
+};
+
+// Exclusion key for a host. Never empty: RankedList refuses empty keys, and the
+// no-peer row (ip "") must be excludable like any other.
+inline QString host_key(const QString& ip) {
+    return ip.isEmpty() ? QStringLiteral("(no-peer)") : ip;
+}
+
+// What a reader sees: the name once DNS snooping exists, else the address.
+inline QString host_label(const QString& ip, const QString& hostname) {
+    if (!hostname.isEmpty()) return hostname;
+    if (ip.isEmpty()) return QCoreApplication::translate("Hosts", "No peer address");
+    return ip;
+}
+
 // The selectable time windows, in the order they are offered.
 //
 // Resolution is chosen per window to keep the point count drawable - between 60
@@ -109,3 +131,5 @@ Q_DECLARE_METATYPE(bandsight::gui::HelloInfo)
 Q_DECLARE_METATYPE(bandsight::gui::SampleFrame)
 Q_DECLARE_METATYPE(bandsight::gui::AppTotal)
 Q_DECLARE_METATYPE(QVector<bandsight::gui::AppTotal>)
+Q_DECLARE_METATYPE(bandsight::gui::AppHostTotal)
+Q_DECLARE_METATYPE(QVector<bandsight::gui::AppHostTotal>)

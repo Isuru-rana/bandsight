@@ -29,6 +29,9 @@ public:
     qint64 timestampAt(int x) const;
 
     QSize sizeHint() const override { return {600, 92}; }
+    // Never squeezed below its preferred height: without a minimum, any column
+    // above that asked for more room (a long Hosts list) took it all.
+    QSize minimumSizeHint() const override { return {200, 92}; }
 
 signals:
     void rangeSelected(qint64 from, qint64 to);

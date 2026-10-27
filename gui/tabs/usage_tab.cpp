@@ -2,14 +2,18 @@
 #include "tabs/usage_tab.h"
 
 #include <QHBoxLayout>
+#include <QHash>
 #include <QScrollArea>
 #include <QComboBox>
 #include <QDateTime>
 #include <QLabel>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 #include "app_labels.h"
 #include "theme.h"
+#include "units.h"
 #include "widgets/card.h"
 #include "widgets/donut_chart.h"
 #include "widgets/ranked_list.h"
@@ -27,6 +31,9 @@ UsageTab::UsageTab(QWidget* parent)
       timeline_(new TimelineStrip),
       hosts_(new Card(tr("Hosts"))),
       traffic_(new Card(tr("Traffic type"))),
+      hosts_list_(new RankedList),
+      hosts_scroll_(nullptr),
+      hosts_note_(new QLabel),
       period_(new QLabel(this)),
       excluding_(new QLabel(this)),
       window_(new QComboBox(this)) {
@@ -52,10 +59,39 @@ UsageTab::UsageTab(QWidget* parent)
     auto* apps_card = new Card(tr("Apps"));
     apps_card->setBody(apps_scroll);
 
+    // Same scrolling as Apps: a busy machine talks to hundreds of hosts.
+    auto* hosts_scroll = new QScrollArea;
+    hosts_list_->setShowChips(false);   // an IP has no initial worth showing
+    hosts_scroll->setWidget(hosts_list_);
+    hosts_scroll->setWidgetResizable(true);
+    hosts_scroll->setFrameShape(QFrame::NoFrame);
+    hosts_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    hosts_scroll->viewport()->setAutoFillBackground(false);
+    hosts_scroll->setStyleSheet(QStringLiteral("background: transparent;"));
+
+    // One line under the list for the states a reader must not misread: an old
+    // daemon, an empty period, an incomplete breakdown.
+    hosts_note_->setObjectName(QStringLiteral("hostsNote"));   // findChild, for tests
+    hosts_note_->setWordWrap(true);
+    hosts_note_->setAlignment(Qt::AlignCenter);
+    hosts_note_->setStyleSheet(QStringLiteral("color:%1;").arg(theme().ink_muted.name()));
+    hosts_note_->hide();
+
+    auto* hosts_body = new QWidget;
+    auto* hosts_box = new QVBoxLayout(hosts_body);
+    hosts_box->setContentsMargins(0, 0, 0, 0);
+    hosts_box->addWidget(hosts_scroll, 1);
+    hosts_scroll_ = hosts_scroll;
+    hosts_scroll_->hide();   // nothing to list until the first reply
+    // Zero-factor stretches either side of the note: they take no space while
+    // the list (factor 1) is shown, and centre the note while it is hidden.
+    hosts_box->addStretch();
+    hosts_box->addWidget(hosts_note_);
+    hosts_box->addStretch();
+    hosts_->setBody(hosts_body);
+
     // Named honestly. "Coming soon" would be a promise; this states the
     // condition, which is the thing a reader can actually check.
-    hosts_->setReserved(tr("Needs per-connection collection.\nThe daemon does not "
-                           "record peer addresses yet."));
     traffic_->setReserved(tr("Needs port and protocol collection.\nThe daemon does "
                              "not record them yet."));
 
@@ -81,6 +117,7 @@ UsageTab::UsageTab(QWidget* parent)
     // Clicking a row filters it out of the total above. Handled here rather than
     // in the list, because the subtraction is this screen's business.
     connect(apps_, &RankedList::rowClicked, this, &UsageTab::toggleExcluded);
+    connect(hosts_list_, &RankedList::rowClicked, this, &UsageTab::toggleHostExcluded);
 
     for (Window w : all_windows()) window_->addItem(window_label(w), int(w));
     window_->setCurrentIndex(window_->findData(int(Window::FiveMin)));
@@ -117,12 +154,108 @@ void UsageTab::toggleExcluded(const QString& exe) {
 }
 
 void UsageTab::clearExcluded() {
-    if (apps_->excluded().isEmpty()) return;
+    if (apps_->excluded().isEmpty() && hosts_list_->excluded().isEmpty()) return;
     apps_->setExcluded({});
+    hosts_list_->setExcluded({});
     recomputeSplit();
 }
 
 QSet<QString> UsageTab::excluded() const { return apps_->excluded(); }
+
+void UsageTab::toggleHostExcluded(const QString& key) {
+    if (key.isEmpty()) return;
+    QSet<QString> next = hosts_list_->excluded();
+    if (next.contains(key)) next.remove(key);
+    else next.insert(key);
+    hosts_list_->setExcluded(next);
+    recomputeSplit();
+}
+
+QSet<QString> UsageTab::excludedHosts() const { return hosts_list_->excluded(); }
+
+void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
+                            qint64 since) {
+    pairs_ = pairs;
+    hosts_collected_ = collected;
+    hosts_since_ = since;
+
+    // Pairs -> one row per host. The pairs are kept: they are what lets an app
+    // and a host exclusion subtract shared bytes once (recomputeSplit).
+    struct Acc {
+        QString ip, hostname;
+        quint64 rx = 0, tx = 0;
+        QVector<QPair<quint64, QString>> apps;
+    };
+    QHash<QString, Acc> by_key;
+    for (const AppHostTotal& p : pairs) {
+        Acc& a = by_key[host_key(p.ip)];
+        a.ip = p.ip;
+        a.hostname = p.hostname;
+        a.rx += p.rx;
+        a.tx += p.tx;
+        AppTotal t;
+        t.exe = p.exe;
+        t.name = p.app_name;
+        a.apps.append({p.rx + p.tx, t.display_name()});
+    }
+
+    QVector<RankedList::Row> rows;
+    rows.reserve(by_key.size());
+    for (auto it = by_key.begin(); it != by_key.end(); ++it) {
+        Acc& a = it.value();
+        std::sort(a.apps.begin(), a.apps.end(),
+                  [](const auto& x, const auto& y) { return x.first > y.first; });
+        // Until hostnames exist, "who is this?" is answered by who talked to it.
+        QStringList top;
+        for (int i = 0; i < a.apps.size() && i < 3; ++i)
+            top << QStringLiteral("%1 %2").arg(a.apps[i].second, format_volume(a.apps[i].first));
+        const QString addr = a.ip.isEmpty() ? tr("No peer address") : a.ip;
+        rows.push_back({host_label(a.ip, a.hostname),
+                        addr + QStringLiteral("\n") + top.join(QStringLiteral(" · ")),
+                        a.rx + a.tx, a.rx, a.tx, it.key()});
+    }
+    std::sort(rows.begin(), rows.end(), [](const RankedList::Row& x, const RankedList::Row& y) {
+        return x.value > y.value;
+    });
+    hosts_list_->setRows(rows);
+
+    // Same rule as apps: a host that left the period cannot be clicked back, so
+    // it must not keep filtering the total invisibly.
+    QSet<QString> pruned;
+    for (const QString& k : hosts_list_->excluded())
+        if (by_key.contains(k)) pruned.insert(k);
+    if (pruned.size() != hosts_list_->excluded().size()) hosts_list_->setExcluded(pruned);
+
+    updateHostsNote();
+    recomputeSplit();
+}
+
+// "Clearly short": under 90% of what the apps moved, and at least 1 MB of it, so
+// minute-edge rounding on short windows never raises it. Compared against the
+// APP totals, not the interfaces: both come from the same hooks, so the only
+// gap between them is a full socket map - which is what the note reports.
+void UsageTab::updateHostsNote() {
+    QString text;
+    if (!hosts_collected_) {
+        text = tr("Update bandsightd to collect hosts.");
+    } else if (pairs_.isEmpty()) {
+        text = tr("No host traffic in this period");
+    } else if (hosts_since_ > 0) {
+        // Host recording began inside the period while app history is older, so
+        // a shortfall is expected, not a full socket map. Say nothing.
+    } else {
+        quint64 apps = 0, hosts = 0;
+        for (const AppTotal& t : totals_) apps += t.rx + t.tx;
+        for (const AppHostTotal& p : pairs_) hosts += p.rx + p.tx;
+        if (apps >= hosts + 1'000'000 && hosts * 10 < apps * 9)
+            text = tr("Host breakdown incomplete");
+    }
+    hosts_note_->setText(text);
+    hosts_note_->setVisible(!text.isEmpty());
+    // An old daemon or an empty period is said once, by the note: the empty
+    // list's own "Nothing in this period" beside it would be a second message.
+    hosts_scroll_->setVisible(hosts_collected_ && !pairs_.isEmpty());
+}
 
 // The headline comes from the INTERFACE totals, so an exclusion is a
 // subtraction from it rather than a re-sum of the rows - that is what keeps
@@ -131,33 +264,51 @@ QSet<QString> UsageTab::excluded() const { return apps_->excluded(); }
 //
 // Clamped at zero: the two sides are collected by different mechanisms, and a
 // rounding or attribution mismatch must not render a negative total.
+// Host exclusions join the subtraction as a union over (app, host) pairs.
 void UsageTab::recomputeSplit() {
-    const QSet<QString>& out = apps_->excluded();
-    quint64 down = split_down_, up = split_up_;
-    int removed = 0;
+    const QSet<QString>& out_apps = apps_->excluded();
+    const QSet<QString>& out_hosts = hosts_list_->excluded();
+    quint64 sub_down = 0, sub_up = 0;
+    int apps_removed = 0;
+    QString one_app;
     for (const AppTotal& t : totals_) {
-        if (!out.contains(t.exe)) continue;
-        down = (t.rx >= down) ? 0 : down - t.rx;
-        up = (t.tx >= up) ? 0 : up - t.tx;
-        ++removed;
+        if (!out_apps.contains(t.exe)) continue;
+        sub_down += t.rx;
+        sub_up += t.tx;
+        ++apps_removed;
+        one_app = t.display_name();
     }
+    // The union: bytes to an excluded host, unless their app is already out -
+    // those were subtracted above and must not be subtracted twice.
+    for (const AppHostTotal& p : pairs_) {
+        if (!out_hosts.contains(host_key(p.ip)) || out_apps.contains(p.exe)) continue;
+        sub_down += p.rx;
+        sub_up += p.tx;
+    }
+    const quint64 down = sub_down >= split_down_ ? 0 : split_down_ - sub_down;
+    const quint64 up = sub_up >= split_up_ ? 0 : split_up_ - sub_up;
     donut_->setValues(down, up);
     stats_->setValues(down, up);
 
     // A filtered total must never look like a real one.
-    if (removed == 0) {
-        excluding_->hide();
-    } else if (removed == 1) {
-        for (const AppTotal& t : totals_) {
-            if (!out.contains(t.exe)) continue;
-            excluding_->setText(tr("excluding %1").arg(t.display_name()));
-            break;
-        }
-        excluding_->show();
-    } else {
-        excluding_->setText(tr("excluding %n application(s)", nullptr, removed));
-        excluding_->show();
+    const int hosts_removed = int(out_hosts.size());
+    QString text;
+    if (apps_removed == 1 && hosts_removed == 0) {
+        text = tr("excluding %1").arg(one_app);
+    } else if (apps_removed > 1 && hosts_removed == 0) {
+        text = tr("excluding %n application(s)", nullptr, apps_removed);
+    } else if (apps_removed == 0 && hosts_removed == 1) {
+        const QString k = *out_hosts.begin();
+        text = tr("excluding %1").arg(k == host_key(QString()) ? tr("No peer address") : k);
+    } else if (apps_removed == 0 && hosts_removed > 1) {
+        text = tr("excluding %n host(s)", nullptr, hosts_removed);
+    } else if (apps_removed > 0 && hosts_removed > 0) {
+        text = tr("excluding %1, %2")
+                   .arg(tr("%n application(s)", nullptr, apps_removed),
+                        tr("%n host(s)", nullptr, hosts_removed));
     }
+    excluding_->setText(text);
+    excluding_->setVisible(!text.isEmpty());
 }
 
 void UsageTab::setTotals(const QVector<AppTotal>& totals) {
@@ -185,6 +336,7 @@ void UsageTab::setTotals(const QVector<AppTotal>& totals) {
         if (still_here.contains(e)) pruned.insert(e);
     if (pruned.size() != apps_->excluded().size()) apps_->setExcluded(pruned);
 
+    updateHostsNote();   // the incomplete note compares against these totals
     recomputeSplit();
 }
 

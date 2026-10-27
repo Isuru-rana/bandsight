@@ -1,6 +1,6 @@
 # Maintainer: Isuru Ranaweera <isururanaweera20@gmail.com>
 pkgname=bandsight
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Per-application network usage monitor for Linux (eBPF daemon + Qt6 GUI), inspired by GlassWire"
 arch=('x86_64' 'aarch64')
