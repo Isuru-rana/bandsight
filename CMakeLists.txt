@@ -24,6 +24,9 @@ add_library(bandsight_core STATIC
     daemon/resolver.cpp
     daemon/collector.cpp
     daemon/json_frame.cpp
+    daemon/json_value.cpp
+    daemon/dns_names.cpp
+    daemon/resolved_monitor.cpp
     daemon/unix_socket_control.cpp
     daemon/host_accounting.cpp
 )
@@ -105,12 +108,14 @@ if(BANDSIGHT_BUILD_GUI)
       gui/frame_codec.cpp
       gui/units.cpp
       gui/app_labels.cpp
+      gui/host_class.cpp
       gui/smooth.cpp
       gui/quota.cpp
       gui/quota_bar.cpp
       gui/settings_dialog.cpp
       gui/failure.cpp
       gui/live_client.cpp
+      gui/single_instance.cpp
       gui/history_store.cpp
       gui/live_ring.cpp
       gui/models/iface_model.cpp

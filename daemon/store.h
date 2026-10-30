@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "dns_names.h"
+
 namespace bandsight {
 
 struct IfaceDelta {
@@ -60,6 +62,11 @@ public:
     void write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces,
                        const std::vector<AppDelta>& apps,
                        const std::vector<HostDelta>& hosts = {});
+
+    // Names hosts rows by address. Never creates a row: most lookups are for
+    // addresses nothing ever connects to. One transaction; a row already
+    // holding that name is not rewritten.
+    void set_hostnames(const std::vector<IpName>& names);
 
     sqlite3* handle() { return db_; }
 

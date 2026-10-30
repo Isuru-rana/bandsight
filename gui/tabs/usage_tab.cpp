@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "app_labels.h"
+#include "host_class.h"
 #include "theme.h"
 #include "units.h"
 #include "widgets/card.h"
@@ -205,14 +206,17 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
         Acc& a = it.value();
         std::sort(a.apps.begin(), a.apps.end(),
                   [](const auto& x, const auto& y) { return x.first > y.first; });
-        // Until hostnames exist, "who is this?" is answered by who talked to it.
+        // A name is not always known (LAN peers, direct-IP traffic, apps with
+        // their own encrypted DNS), and then "who is this?" is answered by who
+        // talked to it.
         QStringList top;
         for (int i = 0; i < a.apps.size() && i < 3; ++i)
             top << QStringLiteral("%1 %2").arg(a.apps[i].second, format_volume(a.apps[i].first));
         const QString addr = a.ip.isEmpty() ? tr("No peer address") : a.ip;
         rows.push_back({host_label(a.ip, a.hostname),
                         addr + QStringLiteral("\n") + top.join(QStringLiteral(" · ")),
-                        a.rx + a.tx, a.rx, a.tx, it.key()});
+                        a.rx + a.tx, a.rx, a.tx, it.key(),
+                        is_lan(a.ip) ? tr("LAN") : QString()});
     }
     std::sort(rows.begin(), rows.end(), [](const RankedList::Row& x, const RankedList::Row& y) {
         return x.value > y.value;

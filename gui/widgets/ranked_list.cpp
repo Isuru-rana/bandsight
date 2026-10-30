@@ -128,8 +128,20 @@ void RankedList::paintEvent(QPaintEvent*) {
         p.setPen(out ? t.ink_faint : t.ink);
         // The name is elided, never wrapped: a wrapped row breaks the constant
         // row height the eye is using to scan the column.
-        p.drawText(QRect(text_x, y, text_w, text_h), Qt::AlignVCenter | Qt::AlignLeft,
-                   fontMetrics().elidedText(r.label, Qt::ElideRight, text_w));
+        // A tag follows the label in muted ink; the label gives up width to it,
+        // never the other way round, so the tag is always readable.
+        const int tag_w = r.tag.isEmpty()
+                              ? 0
+                              : fontMetrics().horizontalAdvance(r.tag) + kChipGap;
+        const QString label =
+            fontMetrics().elidedText(r.label, Qt::ElideRight, qMax(0, text_w - tag_w));
+        p.drawText(QRect(text_x, y, text_w, text_h), Qt::AlignVCenter | Qt::AlignLeft, label);
+        if (!r.tag.isEmpty()) {
+            p.setPen(out ? t.ink_faint : t.ink_muted);
+            p.drawText(QRect(text_x + fontMetrics().horizontalAdvance(label) + kChipGap, y,
+                             tag_w, text_h),
+                       Qt::AlignVCenter | Qt::AlignLeft, r.tag);
+        }
         p.setPen(out ? t.ink_faint : t.ink_muted);
         p.drawText(QRect(width() - value_w, y, value_w, text_h),
                    Qt::AlignVCenter | Qt::AlignRight, value);

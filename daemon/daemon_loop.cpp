@@ -342,6 +342,24 @@ void DaemonLoop::tick(std::int64_t now) {
             }
         }
 
+        // Names are labels, so they come after the bytes and never cost them:
+        // a failure here is logged and the tick carries on. Besides what was
+        // just looked up, every host this tick touched gets the name already
+        // known for it - a row is usually created right AFTER its lookup.
+        if (names_) {
+            try {
+                std::vector<IpName> named = names_->poll(now);
+                for (const auto& h : host_deltas) {
+                    if (h.ip.empty()) continue;
+                    const std::string& n = names_->name_for(h.ip);
+                    if (!n.empty()) named.push_back({h.ip, n});
+                }
+                store_.set_hostnames(named);
+            } catch (const std::exception& e) {
+                log_tick_error(e.what());
+            }
+        }
+
         // Rolling up a database that just refused a write only produces a
         // second failure with the same cause; the next tick retries both.
         if (stored && now_mono - last_rollup_mono_ >= std::chrono::seconds(60)) {
@@ -390,6 +408,9 @@ int run_daemon(const std::string& db_path, const std::string& socket_path) {
                                  "continuing without live frames\n");
         }
         loop.attach_control(&control);
+
+        ResolvedMonitor names;
+        loop.attach_names(&names);
 
         // Hello is built once from the machine's current interface set (not the
         // delta-tracking observe_ifaces(), which mutates DaemonLoop's baseline

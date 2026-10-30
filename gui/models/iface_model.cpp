@@ -2,6 +2,7 @@
 #include "models/iface_model.h"
 
 #include <QApplication>
+#include <QDir>
 #include <QIcon>
 #include <QStyle>
 
@@ -54,7 +55,9 @@ const QString kWhyExcluded = QStringLiteral(
 
 void IfaceModel::setTotals(const QVector<IfaceTotal>& totals) {
     beginResetModel();
-    rows_ = totals;          // checked_ is deliberately untouched
+    rows_.clear();           // checked_ is deliberately untouched
+    for (const IfaceTotal& t : totals)
+        if (!present_ || present_->contains(t.name) || t.rx || t.tx) rows_.push_back(t);
     endResetModel();
 }
 
@@ -67,8 +70,16 @@ void IfaceModel::setWindow(Window w) {
 QSet<int> IfaceModel::visibleIfindexes() const {
     QSet<int> out;
     for (int r = 0; r < rows_.size(); ++r)
-        if (measured(r) && checked_.value(rows_[r].id, true)) out.insert(rows_[r].id);
+        if (measured(r) && checked_.value(rows_[r].name, true)) {
+            out.insert(rows_[r].id);
+            for (int id : rows_[r].ids) out.insert(id);
+        }
     return out;
+}
+
+QSet<QString> present_interfaces(const QString& root) {
+    const QStringList names = QDir(root).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    return QSet<QString>(names.begin(), names.end());
 }
 
 int IfaceModel::rowCount(const QModelIndex& parent) const {
@@ -111,7 +122,7 @@ QVariant IfaceModel::data(const QModelIndex& index, int role) const {
     if (role == MeasuredRole) return m;
     if (role == Qt::ToolTipRole && is_bytes && !m) return kWhyExcluded;
     if (role == Qt::CheckStateRole && index.column() == Name && m)
-        return checked_.value(t.id, true) ? Qt::Checked : Qt::Unchecked;
+        return checked_.value(t.name, true) ? Qt::Checked : Qt::Unchecked;
     return {};
 }
 
@@ -119,7 +130,7 @@ bool IfaceModel::setData(const QModelIndex& index, const QVariant& value, int ro
     if (role != Qt::CheckStateRole || !index.isValid() || index.column() != Name ||
         index.row() >= rows_.size() || !measured(index.row()))
         return false;
-    checked_[rows_[index.row()].id] = value.toInt() == Qt::Checked;
+    checked_[rows_[index.row()].name] = value.toInt() == Qt::Checked;
     emit dataChanged(index, index, {Qt::CheckStateRole});
     emit visibleChanged(visibleIfindexes());
     return true;

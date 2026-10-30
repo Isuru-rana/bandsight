@@ -22,6 +22,9 @@ struct SeriesPoint { qint64 ts = 0; quint64 rx = 0; quint64 tx = 0; };
 struct IfaceTotal {
     int id = 0; QString name; QString kind;
     quint64 rx = 0; quint64 tx = 0;
+    // Every ifindex this name has had: a USB adapter gets a new one on each
+    // plug-in. id is the newest. Empty means just {id}.
+    QVector<int> ids;
 };
 
 // One row of the Usage tab (spec §7): what one application moved over the

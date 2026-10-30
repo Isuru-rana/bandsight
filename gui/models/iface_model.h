@@ -5,6 +5,8 @@
 #include <QSet>
 #include <QVector>
 
+#include <optional>
+
 #include "frame_types.h"
 
 namespace bandsight::gui {
@@ -27,6 +29,12 @@ public:
     explicit IfaceModel(QObject* parent = nullptr) : QAbstractTableModel(parent) {}
 
     void setTotals(const QVector<IfaceTotal>& totals);   // full reset
+
+    // The interfaces that exist right now. Once set, setTotals drops rows that
+    // are gone AND idle over the window: the daemon's table keeps every
+    // interface it ever saw, so every docker veth and unplugged adapter. Never
+    // set (the tests' default) means every row is listed.
+    void setPresent(QSet<QString> names) { present_ = std::move(names); }
     QSet<int> visibleIfindexes() const;                  // checked AND measured rows
 
     // The byte columns hold a total over one window, not a lifetime figure, and
@@ -55,9 +63,15 @@ private:
 
     QVector<IfaceTotal> rows_;
     Window window_ = Window::FiveMin;   // GraphTab's own default
-    // Keyed by ifindex, not row, so a refresh that reorders or grows the list
-    // keeps every checkbox where the user left it. Absent means checked.
-    QHash<int, bool> checked_;
+    std::optional<QSet<QString>> present_;
+    // Keyed by name, not row or ifindex, so a refresh that reorders or grows the
+    // list - or a replug that hands the adapter a new ifindex - keeps every
+    // checkbox where the user left it. Absent means checked.
+    QHash<QString, bool> checked_;
 };
+
+// Interface names under a sysfs net directory - what exists on this machine now.
+// The GUI runs beside the daemon, so it can look for itself.
+QSet<QString> present_interfaces(const QString& root = QStringLiteral("/sys/class/net"));
 
 }  // namespace bandsight::gui

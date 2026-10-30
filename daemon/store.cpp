@@ -227,6 +227,46 @@ void Store::set_config(const std::string& key, const std::string& value) {
     sqlite3_finalize(st);
 }
 
+void Store::set_hostnames(const std::vector<IpName>& names) {
+    if (names.empty()) return;
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db_,
+            "UPDATE hosts SET hostname=?2 WHERE ip=?1 AND hostname IS NOT ?2",
+            -1, &st, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("set_hostnames prepare");
+    }
+    // Same shape as write_samples, for the same reasons: every path finalizes
+    // the statement, COMMIT is inside the guard so a failed one cannot leave a
+    // transaction open for the next tick's BEGIN, and a ROLLBACK that fails
+    // because SQLite already rolled back must not replace the real error.
+    try {
+        exec("BEGIN");
+        for (const auto& n : names) {
+            sqlite3_reset(st);
+            sqlite3_bind_text(st, 1, n.ip.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 2, n.name.c_str(), -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(st) != SQLITE_DONE)
+                throw std::runtime_error(std::string("set_hostnames step: ") +
+                                         sqlite3_errmsg(db_));
+        }
+        sqlite3_finalize(st);
+        st = nullptr;
+        exec("COMMIT");
+    } catch (...) {
+        sqlite3_finalize(st);   // a no-op on nullptr
+        if (!sqlite3_get_autocommit(db_)) {
+            try {
+                exec("ROLLBACK");
+            } catch (const std::exception& rollback_failed) {
+                std::fprintf(stderr, "bandsightd: rollback after a failed name write also "
+                                     "failed (%s); reporting the original error\n",
+                             rollback_failed.what());
+            }
+        }
+        throw;
+    }
+}
+
 void Store::upsert_iface(int ifindex, const std::string& name, const std::string& kind) {
     sqlite3_stmt* st = nullptr;
     const char* sql =

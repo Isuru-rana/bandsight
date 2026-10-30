@@ -112,9 +112,11 @@ void IfaceTab::setShowUnmeasured(bool on) {
 void IfaceTab::setTotals(const QVector<IfaceTotal>& totals) {
     model_->setTotals(totals);
 
+    // Counted from the model, which has dropped interfaces that are gone and
+    // idle: the label must count only what the box would actually reveal.
     int hidden = 0;
-    for (const IfaceTotal& t : totals)
-        if (!kind_is_measured(t.kind)) ++hidden;
+    for (int r = 0; r < model_->rowCount(); ++r)
+        if (!model_->index(r, 0).data(IfaceModel::MeasuredRole).toBool()) ++hidden;
     show_unmeasured_->setText(tr("Show unmeasured interfaces (%1)").arg(hidden));
     // Nothing to reveal is not a choice worth offering, but the label still
     // states the count so an empty list reads as an answer, not a missing one.

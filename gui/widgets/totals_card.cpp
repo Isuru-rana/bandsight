@@ -6,6 +6,7 @@
 #include <QPainterPath>
 #include <algorithm>
 
+#include "host_class.h"
 #include "theme.h"
 #include "units.h"
 
@@ -13,7 +14,6 @@ namespace bandsight::gui {
 
 namespace {
 constexpr int kPad = 12;
-constexpr int kMaxRows = 4;   // a fifth interface onward folds into "Other"
 constexpr int kBarH = 6;
 
 // A small triangle in the series colour: the colour carries identity on a mark,
@@ -51,26 +51,21 @@ void TotalsCard::setRates(quint64 down_bps, quint64 up_bps) {
     update();
 }
 
-void TotalsCard::setIfaces(const QVector<IfaceTotal>& totals, const QSet<int>& visible) {
-    QVector<IfaceTotal> rows;
-    for (const IfaceTotal& t : totals)
-        if (kind_is_measured(t.kind) && visible.contains(t.id)) rows.append(t);
-    std::stable_sort(rows.begin(), rows.end(), [](const IfaceTotal& a, const IfaceTotal& b) {
-        return a.rx + a.tx > b.rx + b.tx;
-    });
-    if (rows.size() > kMaxRows) {
-        // Folded, never dropped: the bars must still account for every byte.
-        IfaceTotal other;
-        other.id = -1;
-        other.name = tr("Other");
-        for (int i = kMaxRows - 1; i < rows.size(); ++i) {
-            other.rx += rows[i].rx;
-            other.tx += rows[i].tx;
+void TotalsCard::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected) {
+    rows_.clear();
+    if (collected) {
+        ZoneRow wan{tr("WAN"), 0, 0};
+        ZoneRow lan{tr("LAN"), 0, 0};
+        for (const AppHostTotal& p : pairs) {
+            switch (host_zone(p.ip)) {
+                case HostZone::Wan: wan.rx += p.rx; wan.tx += p.tx; break;
+                case HostZone::Lan: lan.rx += p.rx; lan.tx += p.tx; break;
+                case HostZone::None: break;
+            }
         }
-        rows.resize(kMaxRows - 1);
-        rows.append(other);
+        // Fixed order, both always present: the eye learns where WAN is.
+        rows_ = {wan, lan};
     }
-    rows_ = rows;
     update();
 }
 
@@ -207,18 +202,18 @@ void TotalsCard::paintEvent(QPaintEvent*) {
     p.drawLine(geo.divider_x, inner.top() + 4, geo.divider_x, inner.bottom() - 4);
 
     quint64 max_total = 0;
-    for (const IfaceTotal& r : rows_) max_total = qMax(max_total, r.rx + r.tx);
+    for (const ZoneRow& r : rows_) max_total = qMax(max_total, r.rx + r.tx);
 
     const int name_w = qMin(90, geo.list.width() / 3);
     const int value_w = fontMetrics().horizontalAdvance(QStringLiteral("888.8 MB")) + 6;
     const int bar_w = qMax(20, geo.list.width() - name_w - value_w - 8);
     for (int i = 0; i < rows_.size(); ++i) {
-        const IfaceTotal& r = rows_[i];
+        const ZoneRow& r = rows_[i];
         const QRect row = geo.rows[i];
         p.setPen(t.ink);
         p.drawText(QRect(row.left(), row.top(), name_w, row.height()),
                    Qt::AlignLeft | Qt::AlignVCenter,
-                   fontMetrics().elidedText(r.name, Qt::ElideRight, name_w - 4));
+                   fontMetrics().elidedText(r.label, Qt::ElideRight, name_w - 4));
 
         // One track per row; the filled length is this interface against the
         // busiest one, split download then upload with a surface gap.

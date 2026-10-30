@@ -70,7 +70,6 @@ void GraphTab::onSeries(Window w, QVector<SeriesPoint> points) {
 
 void GraphTab::onVisibleChanged(QSet<int> visible) {
     visible_ = std::move(visible);
-    totals_->setIfaces(iface_totals_, visible_);
     refresh();
 }
 
@@ -83,9 +82,8 @@ void GraphTab::onDisconnected() {
     if (is_live(window())) redraw({});
 }
 
-void GraphTab::setIfaceTotals(QVector<IfaceTotal> totals) {
-    iface_totals_ = std::move(totals);
-    totals_->setIfaces(iface_totals_, visible_);
+void GraphTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected) {
+    totals_->setHostPairs(pairs, collected);
 }
 
 void GraphTab::setWindow(Window w) {

@@ -12,6 +12,7 @@
 
 #include "collector.h"
 #include "control_server.h"
+#include "resolved_monitor.h"
 #include "iface_class.h"
 #include "netlink_stats.h"
 #include "resolver.h"
@@ -57,6 +58,10 @@ public:
     // Attaches the control-plane server. Not owned: the caller keeps it alive
     // for at least as long as this DaemonLoop.
     void attach_control(ControlServer* c);
+
+    // Attaches the source of host names. Not owned, same as attach_control;
+    // never attached means hosts stay named by address only.
+    void attach_names(ResolvedMonitor* m) { names_ = m; }
 
 private:
     // Logs a tick failure caught by tick()'s top-level catch, rate-limited so a
@@ -144,6 +149,7 @@ private:
     Collector collector_;
     Resolver resolver_;
     ControlServer* control_ = nullptr;
+    ResolvedMonitor* names_ = nullptr;
 };
 
 // Opens the store at db_path, migrates, and runs until SIGTERM/SIGINT.

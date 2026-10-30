@@ -171,6 +171,7 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(history_, &HistoryStore::ifaceTotals, this,
             [this](const QVector<IfaceTotal>& totals) {
                 ifaces_->model()->setWindow(totals_window_);
+                ifaces_->model()->setPresent(present_interfaces());
                 ifaces_->setTotals(totals);
                 if (sel_to_ > sel_from_)
                     usage_->setPeriodRange(sel_from_, sel_to_);
@@ -184,10 +185,6 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
                 for (const IfaceTotal& t : totals)
                     if (kind_is_measured(t.kind)) { rx += t.rx; tx += t.tx; }
                 usage_->setSplit(rx, tx);
-                // The graph card's bars cover the whole window, like the chart
-                // above them; a Usage timeline selection narrows these totals,
-                // so a ranged answer is not theirs.
-                if (!(sel_to_ > sel_from_)) graph_->setIfaceTotals(totals);
                 // setTotals deliberately emits nothing (Task 8), so newly
                 // appeared interfaces reach the graph only from here.
                 applyVisible(ifaces_->model()->visibleIfindexes());
@@ -202,6 +199,10 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(history_, &HistoryStore::hostPairs, this,
             [this](const QVector<AppHostTotal>& pairs, bool collected, qint64 since) {
                 usage_->setHostPairs(pairs, collected, since);
+                // The graph card's WAN/LAN bars cover the whole window, like the
+                // chart above them; a Usage timeline selection narrows these
+                // pairs, so a ranged answer is not theirs.
+                if (!(sel_to_ > sel_from_)) graph_->setHostPairs(pairs, collected);
             });
 
     // --- widgets ------------------------------------------------------------

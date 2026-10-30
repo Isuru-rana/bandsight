@@ -22,6 +22,7 @@ public:
         quint64 down = 0;
         quint64 up = 0;
         QString key;         // stable identity for exclusion: the executable
+        QString tag = {};    // short muted marker after the label (e.g. "LAN"), or none
     };
 
     explicit RankedList(QWidget* parent = nullptr);

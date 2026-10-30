@@ -56,8 +56,8 @@ public slots:
     void onSeries(Window w, QVector<SeriesPoint> points);
     void onVisibleChanged(QSet<int> visible);
     void onDisconnected();
-    // Per-interface totals for the window, for the card's interface bars.
-    void setIfaceTotals(QVector<IfaceTotal> totals);
+    // Host pairs for the window, for the card's WAN/LAN bars.
+    void setHostPairs(const QVector<AppHostTotal>& pairs, bool collected);
 
 signals:
     void seriesNeeded(Window w, QSet<int> ifindexes, qint64 now);
@@ -81,8 +81,6 @@ private:
     Window last_window_;
     QSet<int> visible_;
     bool needs_seed_ = false;
-
-    QVector<IfaceTotal> iface_totals_;
 
     QComboBox* combo_;
     TrafficChart* chart_;

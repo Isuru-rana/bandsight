@@ -128,12 +128,15 @@ void HistoryStore::queryIfaceTotalsRange(qint64 from, qint64 to, int res) {
 
     QVector<IfaceTotal> out;
     QSqlQuery q(db_);
+    // Grouped by name, not ifindex: a replugged adapter is one interface under
+    // several ifindexes. The kind is the newest ifindex's - SQLite takes a bare
+    // column from the row that MAX() picked.
     q.prepare(QStringLiteral(
-        "SELECT i.id, i.name, i.kind, "
-        "COALESCE(SUM(s.rx),0), COALESCE(SUM(s.tx),0) "
+        "SELECT MAX(i.id), i.name, i.kind, "
+        "COALESCE(SUM(s.rx),0), COALESCE(SUM(s.tx),0), GROUP_CONCAT(DISTINCT i.id) "
         "FROM ifaces i LEFT JOIN iface_samples s "
         "  ON s.iface_id = i.id AND s.res=? AND s.ts>=? AND s.ts<=? "
-        "WHERE i.id != 0 GROUP BY i.id ORDER BY i.name"));
+        "WHERE i.id != 0 GROUP BY i.name ORDER BY i.name"));
     q.addBindValue(res);
     q.addBindValue(start);
     q.addBindValue(to);
@@ -145,6 +148,8 @@ void HistoryStore::queryIfaceTotalsRange(qint64 from, qint64 to, int res) {
             t.kind = q.value(2).toString();
             t.rx = q.value(3).toULongLong();
             t.tx = q.value(4).toULongLong();
+            for (const QString& id : q.value(5).toString().split(QLatin1Char(',')))
+                t.ids.push_back(id.toInt());
             out.push_back(t);
         }
     } else {
