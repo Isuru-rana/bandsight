@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "widgets/card.h"
 
+#include <QEvent>
 #include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
@@ -23,6 +24,7 @@ Card::Card(const QString& title, QWidget* parent)
     body_ = new QVBoxLayout;
     body_->setContentsMargins(0, 0, 0, 0);
     outer->addLayout(body_, 1);
+    applyInk();
 }
 
 QString Card::title() const { return title_->text(); }
@@ -41,7 +43,7 @@ void Card::setReserved(const QString& reason) {
     body_->addStretch();
     body_->addWidget(note);
     body_->addStretch();
-    update();
+    applyInk();
 }
 
 void Card::paintEvent(QPaintEvent*) {
@@ -54,13 +56,25 @@ void Card::paintEvent(QPaintEvent*) {
                         Theme::radius_card, Theme::radius_card);
     p.fillPath(path, t.card);
     p.strokePath(path, QPen(t.border, 1));
+}
 
-    // Recessive, not absent: a reserved column still occupies its space and
-    // still says what it is.
+// Never from paintEvent: setStyleSheet re-polishes the label, which schedules
+// another paint of this card, so styling there repainted forever and pinned a
+// core. A desktop theme switch arrives as PaletteChange, which re-runs this.
+void Card::changeEvent(QEvent* e) {
+    if (e->type() == QEvent::PaletteChange) applyInk();
+    QWidget::changeEvent(e);
+}
+
+// Recessive, not absent: a reserved column still occupies its space and still
+// says what it is.
+void Card::applyInk() {
+    const Theme t = theme();
     title_->setStyleSheet(QStringLiteral("color:%1;")
                               .arg((reserved_ ? t.ink_faint : t.ink).name()));
     if (auto* note = findChild<QLabel*>(QStringLiteral("reservedNote")))
         note->setStyleSheet(QStringLiteral("color:%1;").arg(t.ink_faint.name()));
+    update();
 }
 
 }  // namespace bandsight::gui

@@ -27,8 +27,11 @@ public:
 
 protected:
     void paintEvent(QPaintEvent*) override;
+    void changeEvent(QEvent*) override;
 
 private:
+    void applyInk();
+
     QLabel* title_;
     QVBoxLayout* body_;
     bool reserved_ = false;
