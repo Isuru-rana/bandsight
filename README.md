@@ -102,15 +102,25 @@ interface totals, just not the per-app breakdown, and logs why.
 
 ## Install
 
-Download packages from the [Releases](https://github.com/Isuru-rana/bandsight/releases) page.
-
 ### Debian / Ubuntu (Debian 12+, Ubuntu 24.04+)
 
+Add the Bandsight package source once, then install:
+
 ```bash
-sudo apt install ./bandsight_*_amd64.deb
+curl -fsSL https://isuru-rana.github.io/bandsight/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/bandsight.gpg
+echo "deb [signed-by=/usr/share/keyrings/bandsight.gpg] https://isuru-rana.github.io/bandsight stable main" | sudo tee /etc/apt/sources.list.d/bandsight.list
+sudo apt update && sudo apt install bandsight
 ```
 
+New versions then arrive with `sudo apt update && sudo apt upgrade`. Every
+release stays available, so `sudo apt install bandsight=0.3.0` goes back to one.
+
+Prefer a one-off download? Each [release](https://github.com/Isuru-rana/bandsight/releases)
+also carries the `.deb`: `sudo apt install ./bandsight_*_amd64.deb`.
+
 ### Fedora / openSUSE
+
+Download the `.rpm` from the [Releases](https://github.com/Isuru-rana/bandsight/releases) page:
 
 ```bash
 sudo dnf install ./bandsight-*.x86_64.rpm        # Fedora

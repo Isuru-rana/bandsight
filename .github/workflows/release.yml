@@ -63,8 +63,8 @@ jobs:
       - name: Build with PKGBUILD
         run: |
           useradd -m builder
-          mkdir -p /tmp/pkg/src/bandsight-0.2.0
-          cp -r . /tmp/pkg/src/bandsight-0.2.0/
+          mkdir -p /tmp/pkg/src/bandsight-0.3.0
+          cp -r . /tmp/pkg/src/bandsight-0.3.0/
           cp packaging/arch/PKGBUILD packaging/arch/bandsight.install /tmp/pkg/
           cd /tmp/pkg
           # Build from the checked-out tree instead of the release tarball.
@@ -76,6 +76,46 @@ jobs:
         with:
           name: arch
           path: '*.pkg.tar.zst'
+
+  # Adds the release's .deb to the signed APT repository on the gh-pages branch,
+  # which GitHub Pages serves at https://isuru-rana.github.io/bandsight.
+  apt:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb]
+    runs-on: ubuntu-latest
+    # Two releases publishing at once would race on the same branch.
+    concurrency:
+      group: apt-repository
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb
+          path: debs
+      - name: Check out the repository branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone --branch gh-pages --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" site
+      - name: Import the signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+      - name: Publish
+        run: |
+          sudo apt-get install -y dpkg-dev
+          KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          sh packaging/apt/publish.sh debs site "$KEY"
+      - name: Push
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish ${GITHUB_REF_NAME}"
+          git push origin gh-pages
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
