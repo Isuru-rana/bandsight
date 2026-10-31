@@ -1,0 +1,16 @@
+Package: bandsight
+Version: 0.3.0
+Architecture: amd64
+Maintainer: Isuru Ranaweera <isururanaweera20@gmail.com>
+Installed-Size: 2106
+Depends: libqt6sql6-sqlite, libbpf1 (>= 1:0.6.0), libc6 (>= 2.34), libgcc-s1 (>= 3.0), libqt6core6 (>= 6.4.0), libqt6gui6 (>= 6.1.2), libqt6network6 (>= 6.1.2), libqt6sql6 (>= 6.1.2), libqt6widgets6 (>= 6.3.0), libsqlite3-0 (>= 3.5.9), libstdc++6 (>= 11)
+Filename: pool/main/b/bandsight/bandsight_0.3.0_amd64.deb
+Size: 876842
+MD5sum: f9cc321ff8ccb197a2db9c0e0a370b09
+SHA1: 856a0d596e71742a36983088700ac70abdf4f668
+SHA256: bae58a0c08965ba430ce2e77c858076f8f35731b43fa67673ab38340ee8f9c34
+Section: net
+Priority: optional
+Homepage: https://github.com/Isuru-rana/bandsight
+Description: Per-application network usage monitor for Linux (eBPF daemon + Qt6 GUI)
+

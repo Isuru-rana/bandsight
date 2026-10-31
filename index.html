@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Bandsight APT repository</title></head>
+<body>
+<h1>Bandsight APT repository</h1>
+<p>Debian 12+ and Ubuntu 24.04+, amd64. Add the source once:</p>
+<pre>curl -fsSL https://isuru-rana.github.io/bandsight/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/bandsight.gpg
+echo "deb [signed-by=/usr/share/keyrings/bandsight.gpg] https://isuru-rana.github.io/bandsight stable main" | sudo tee /etc/apt/sources.list.d/bandsight.list
+sudo apt update &amp;&amp; sudo apt install bandsight</pre>
+<p>Updates then arrive with <code>sudo apt update &amp;&amp; sudo apt upgrade</code>.
+Source: <a href="https://github.com/Isuru-rana/bandsight">github.com/Isuru-rana/bandsight</a></p>
+</body></html>
