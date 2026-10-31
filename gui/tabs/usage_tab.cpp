@@ -3,7 +3,6 @@
 
 #include <QHBoxLayout>
 #include <QHash>
-#include <QScrollArea>
 #include <QComboBox>
 #include <QDateTime>
 #include <QLabel>
@@ -33,7 +32,6 @@ UsageTab::UsageTab(QWidget* parent)
       hosts_(new Card(tr("Hosts"))),
       traffic_(new Card(tr("Traffic type"))),
       hosts_list_(new RankedList),
-      hosts_scroll_(nullptr),
       hosts_note_(new QLabel),
       period_(new QLabel(this)),
       excluding_(new QLabel(this)),
@@ -47,28 +45,14 @@ UsageTab::UsageTab(QWidget* parent)
     total->setBody(total_body);
 
     // The list is as long as the machine is busy - 161 applications have been
-    // recorded here. Without this the rows past the card's height are simply not
-    // drawn, and nothing on screen says there are more.
-    auto* apps_scroll = new QScrollArea;
-    apps_scroll->setWidget(apps_);
-    apps_scroll->setWidgetResizable(true);
-    apps_scroll->setFrameShape(QFrame::NoFrame);
-    apps_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    apps_scroll->viewport()->setAutoFillBackground(false);
-    apps_scroll->setStyleSheet(QStringLiteral("background: transparent;"));
-
+    // recorded here. It shows what fits and counts the rest on its last line
+    // (RankedList). It used to sit in a scroll area styled "background:
+    // transparent", which hid the scroll bar - so the list looked cut off - and,
+    // being unscoped, also stripped the background from every row tooltip.
     auto* apps_card = new Card(tr("Apps"));
-    apps_card->setBody(apps_scroll);
+    apps_card->setBody(apps_);
 
-    // Same scrolling as Apps: a busy machine talks to hundreds of hosts.
-    auto* hosts_scroll = new QScrollArea;
     hosts_list_->setShowChips(false);   // an IP has no initial worth showing
-    hosts_scroll->setWidget(hosts_list_);
-    hosts_scroll->setWidgetResizable(true);
-    hosts_scroll->setFrameShape(QFrame::NoFrame);
-    hosts_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    hosts_scroll->viewport()->setAutoFillBackground(false);
-    hosts_scroll->setStyleSheet(QStringLiteral("background: transparent;"));
 
     // One line under the list for the states a reader must not misread: an old
     // daemon, an empty period, an incomplete breakdown.
@@ -81,9 +65,8 @@ UsageTab::UsageTab(QWidget* parent)
     auto* hosts_body = new QWidget;
     auto* hosts_box = new QVBoxLayout(hosts_body);
     hosts_box->setContentsMargins(0, 0, 0, 0);
-    hosts_box->addWidget(hosts_scroll, 1);
-    hosts_scroll_ = hosts_scroll;
-    hosts_scroll_->hide();   // nothing to list until the first reply
+    hosts_box->addWidget(hosts_list_, 1);
+    hosts_list_->hide();   // nothing to list until the first reply
     // Zero-factor stretches either side of the note: they take no space while
     // the list (factor 1) is shown, and centre the note while it is hidden.
     hosts_box->addStretch();
@@ -258,7 +241,7 @@ void UsageTab::updateHostsNote() {
     hosts_note_->setVisible(!text.isEmpty());
     // An old daemon or an empty period is said once, by the note: the empty
     // list's own "Nothing in this period" beside it would be a second message.
-    hosts_scroll_->setVisible(hosts_collected_ && !pairs_.isEmpty());
+    hosts_list_->setVisible(hosts_collected_ && !pairs_.isEmpty());
 }
 
 // The headline comes from the INTERFACE totals, so an exclusion is a

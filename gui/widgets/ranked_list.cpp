@@ -16,6 +16,9 @@ namespace {
 constexpr int kBarHeight = 4;
 constexpr int kRowPad = 10;
 constexpr int kChipGap = 8;
+// The hidden-rows tooltip is a rough idea, not an inventory: hundreds of hosts
+// would cover the screen.
+constexpr int kMaxHiddenListed = 25;
 }  // namespace
 
 RankedList::RankedList(QWidget* parent) : QWidget(parent) {
@@ -36,7 +39,47 @@ int RankedList::rowAt(const QPoint& pos) const {
     const int h = rowHeight();
     if (h <= 0) return -1;
     const int i = pos.y() / h;
-    return (i >= 0 && i < rows_.size()) ? i : -1;
+    return (i >= 0 && i < shownRows()) ? i : -1;
+}
+
+int RankedList::shownRows() const {
+    // The last line needs no padding below it: a row's content is the text,
+    // a 3 px gap and the bar.
+    const int content = fontMetrics().height() + 3 + kBarHeight;
+    const int fit = height() < content ? 0 : (height() - content) / qMax(1, rowHeight()) + 1;
+    if (rows_.size() <= fit) return int(rows_.size());
+    return qMax(0, fit - 1);   // the last line that fits holds the count
+}
+
+std::optional<RankedList::Row> RankedList::othersRow() const {
+    const int shown = shownRows();
+    if (shown >= rows_.size()) return std::nullopt;
+    Row o;
+    for (int k = shown; k < rows_.size(); ++k) {
+        o.value += rows_[k].value;
+        o.down += rows_[k].down;
+        o.up += rows_[k].up;
+    }
+    o.label = tr("%1 others").arg(rows_.size() - shown);
+    return o;
+}
+
+QString RankedList::tooltipAt(const QPoint& pos) const {
+    const int i = pos.y() / qMax(1, rowHeight());
+    const int shown = shownRows();
+    if (i >= 0 && i < shown) return rows_[i].tooltip;
+    if (i != shown || shown >= rows_.size()) return {};
+
+    QStringList lines;
+    const int hidden = int(rows_.size()) - shown;
+    for (int k = shown; k < rows_.size() && k < shown + kMaxHiddenListed; ++k) {
+        const Row& r = rows_[k];
+        QString line = QStringLiteral("%1  %2").arg(r.label, format_volume(r.value));
+        if (excluded_.contains(r.key)) line += tr(" (excluded)");
+        lines << line;
+    }
+    if (hidden > kMaxHiddenListed) lines << tr("and %1 more").arg(hidden - kMaxHiddenListed);
+    return lines.join(QLatin1Char('\n'));
 }
 
 void RankedList::mousePressEvent(QMouseEvent* e) {
@@ -79,9 +122,13 @@ void RankedList::setShowChips(bool on) {
     update();
 }
 
+// Asks for a few rows, not all of them: the card's height is the window's
+// decision, and whatever does not fit is counted on the last line.
 QSize RankedList::sizeHint() const {
-    return {220, qMax(1, int(rows_.size())) * rowHeight()};
+    return {220, qBound(1, int(rows_.size()), 6) * rowHeight()};
 }
+
+QSize RankedList::minimumSizeHint() const { return {120, 2 * rowHeight()}; }
 
 void RankedList::paintEvent(QPaintEvent*) {
     const Theme t = theme();
@@ -97,11 +144,16 @@ void RankedList::paintEvent(QPaintEvent*) {
     const quint64 max = maxValue();
     const int rh = rowHeight();
     const int text_h = fontMetrics().height();
+    const int shown = shownRows();
+    const std::optional<Row> others = othersRow();
+    const int lines = shown + (others ? 1 : 0);
 
-    for (int i = 0; i < rows_.size(); ++i) {
-        const Row& r = rows_[i];
+    for (int i = 0; i < lines; ++i) {
+        // The others row is drawn like any other, minus the chip: it is not one
+        // application, so an initial would claim an identity it does not have.
+        const bool is_others = i == shown;
+        const Row& r = is_others ? *others : rows_[i];
         const int y = i * rh;
-        if (y > height()) break;
 
         const QString value = format_volume(r.value);
         const int value_w = fontMetrics().horizontalAdvance(value) + 8;
@@ -115,7 +167,7 @@ void RankedList::paintEvent(QPaintEvent*) {
 
         // The chip goes first, so the eye has a fixed left edge to run down.
         const int chip = chipSize();
-        if (show_chips_) {
+        if (show_chips_ && !is_others) {
             const QRect chip_box(0, y, chip, chip);
             if (out) p.setOpacity(0.35);   // filtered rows recede, chip and all
             paint_identity_chip(p, chip_box, r.label);
@@ -125,7 +177,7 @@ void RankedList::paintEvent(QPaintEvent*) {
         const int text_x = show_chips_ ? chip + kChipGap : 0;
         const int text_w = width() - value_w - text_x;
 
-        p.setPen(out ? t.ink_faint : t.ink);
+        p.setPen(out ? t.ink_faint : is_others ? t.ink_muted : t.ink);
         // The name is elided, never wrapped: a wrapped row breaks the constant
         // row height the eye is using to scan the column.
         // A tag follows the label in muted ink; the label gives up width to it,
@@ -150,7 +202,9 @@ void RankedList::paintEvent(QPaintEvent*) {
         // Proportion bar, scaled to the largest row. Rounded data-end, flat
         // start: it grows from a baseline rather than floating.
         const int bar_y = y + text_h + 3;
-        const double frac = max ? double(r.value) / double(max) : 0.0;
+        // The others row can sum past the largest single row; its bar stops at
+        // full width rather than running off the card.
+        const double frac = max ? qMin(1.0, double(r.value) / double(max)) : 0.0;
         // Aligned with the label rather than the chip, so the bars form one
         // straight edge down the column.
         const int bar_x = text_x;
@@ -190,9 +244,9 @@ void RankedList::paintEvent(QPaintEvent*) {
 }
 
 void RankedList::mouseMoveEvent(QMouseEvent* e) {
-    const int i = e->position().y() / qMax(1, rowHeight());
-    if (i >= 0 && i < rows_.size() && !rows_[i].tooltip.isEmpty())
-        QToolTip::showText(e->globalPosition().toPoint(), rows_[i].tooltip, this);
+    const QString tip = tooltipAt(e->position().toPoint());
+    if (!tip.isEmpty())
+        QToolTip::showText(e->globalPosition().toPoint(), tip, this);
     else
         QToolTip::hideText();
 }

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include <optional>
+
 #include <QSet>
 #include <QVector>
 #include <QWidget>
@@ -37,6 +39,19 @@ public:
     QStringList visibleLabels() const;
     quint64 maxValue() const;
 
+    // Rows drawn as themselves. When they do not all fit, the last line that
+    // fits is othersRow() instead - rows cut off at the card's edge read as the
+    // whole list - and hovering it lists them.
+    int shownRows() const;
+
+    // The rows that do not fit, summed into one ordinary row ("16 others"):
+    // they are still traffic. No key, so it cannot be clicked out of a total.
+    // nullopt when everything fits.
+    std::optional<Row> othersRow() const;
+
+    // The tooltip for a point: the row's own, or the hidden rows' list.
+    QString tooltipAt(const QPoint& pos) const;
+
     // Rows the user has clicked out of the total. Excluded rows stay VISIBLE and
     // stay in the ranking - they are filtered, not hidden, so they can always be
     // clicked back. Keyed by executable so the set survives a refresh that
@@ -64,6 +79,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* e) override;
     void mousePressEvent(QMouseEvent* e) override;
     QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
 private:
     int rowHeight() const;

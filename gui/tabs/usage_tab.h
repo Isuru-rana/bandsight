@@ -107,7 +107,6 @@ private:
     Card* hosts_;
     Card* traffic_;
     RankedList* hosts_list_;
-    QWidget* hosts_scroll_;   // hidden when there is nothing to list
     QLabel* hosts_note_;
     QLabel* period_;
     QLabel* excluding_;
