@@ -77,11 +77,26 @@ jobs:
           name: arch
           path: '*.pkg.tar.zst'
 
+  # The release text is the version's CHANGELOG.md section. Checked before
+  # anything is published, so a tag without notes stops here rather than
+  # leaving a half-published release.
+  notes:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract release notes
+        run: sh packaging/release-notes.sh "${GITHUB_REF_NAME#v}" > release-notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: release-notes.md
+
   # Adds the release's .deb to the signed APT repository on the gh-pages branch,
   # which GitHub Pages serves at https://isuru-rana.github.io/bandsight.
   apt:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [deb]
+    needs: [deb, notes]
     runs-on: ubuntu-latest
     # Two releases publishing at once would race on the same branch.
     concurrency:
@@ -119,14 +134,16 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [deb, rpm, arch]
+    needs: [deb, rpm, arch, notes]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: Keep the notes out of the attached files
+        run: mv dist/release-notes.md release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md

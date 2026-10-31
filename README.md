@@ -102,6 +102,8 @@ interface totals, just not the per-app breakdown, and logs why.
 
 ## Install
 
+What each version added, changed, fixed and removed: [CHANGELOG.md](CHANGELOG.md).
+
 ### Debian / Ubuntu (Debian 12+, Ubuntu 24.04+)
 
 Add the Bandsight package source once, then install:
