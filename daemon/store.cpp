@@ -126,6 +126,8 @@ void Store::migrate() {
     exec("BEGIN");
     exec(kSchema);
     exec("INSERT OR IGNORE INTO ifaces(id, name, kind) VALUES(0, 'unknown', 'unknown')");
+    exec("INSERT OR IGNORE INTO ifaces(id, name, kind) VALUES(" +
+         std::to_string(kIfaceOtherNetns) + ", 'other-netns', 'virtual')");
     exec("INSERT OR IGNORE INTO config(key, value) VALUES('schema_version', '" +
          std::to_string(kSchemaVersion) + "')");
     exec("COMMIT");

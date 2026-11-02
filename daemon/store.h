@@ -33,6 +33,13 @@ struct HostDelta {
     std::uint64_t tx = 0;
 };
 
+// The ifaces row for traffic from sockets in another network namespace
+// (containers). Like row 0 ("unknown"), it is created by migrate() and never
+// names a real interface. Its kind is "virtual": those bytes also cross a real
+// interface on the way out, where the interface totals already count them, and
+// container-to-container traffic never leaves the machine at all.
+constexpr int kIfaceOtherNetns = -1;
+
 class Store {
 public:
     // path may be ":memory:" for tests. Throws std::runtime_error on failure.
