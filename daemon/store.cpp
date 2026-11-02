@@ -223,7 +223,13 @@ void Store::set_config(const std::string& key, const std::string& value) {
     }
     sqlite3_bind_text(st, 1, key.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(st, 2, value.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_step(st);
+    // The caller reports success to the GUI on return, so a write that did not
+    // happen (SQLITE_BUSY, SQLITE_FULL) must throw rather than read as "ok".
+    if (sqlite3_step(st) != SQLITE_DONE) {
+        const std::string msg = sqlite3_errmsg(db_);
+        sqlite3_finalize(st);
+        throw std::runtime_error("set_config step: " + msg);
+    }
     sqlite3_finalize(st);
 }
 
