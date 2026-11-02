@@ -99,6 +99,9 @@ private:
     bool hosts_collected_ = true;
     qint64 hosts_since_ = 0;
     void updateHostsNote();
+    // The "Unattributed" footer of both lists: what the headline counted and the
+    // rows do not account for. Recomputed whenever either side changes.
+    void updateUnattributed();
 
     DonutChart* donut_;
     StatPair* stats_;

@@ -13,6 +13,7 @@
 #include "app_labels.h"
 #include "host_class.h"
 #include "theme.h"
+#include "unattributed.h"
 #include "units.h"
 #include "widgets/card.h"
 #include "widgets/donut_chart.h"
@@ -214,6 +215,7 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
     if (pruned.size() != hosts_list_->excluded().size()) hosts_list_->setExcluded(pruned);
 
     updateHostsNote();
+    updateUnattributed();
     recomputeSplit();
 }
 
@@ -324,13 +326,52 @@ void UsageTab::setTotals(const QVector<AppTotal>& totals) {
     if (pruned.size() != apps_->excluded().size()) apps_->setExcluded(pruned);
 
     updateHostsNote();   // the incomplete note compares against these totals
+    updateUnattributed();
     recomputeSplit();
 }
 
 void UsageTab::setSplit(quint64 down, quint64 up) {
     split_down_ = down;
     split_up_ = up;
+    updateUnattributed();
     recomputeSplit();
+}
+
+// Against the UNFILTERED headline and rows: an exclusion subtracts from both
+// sides, so the remainder does not change when a row is clicked out.
+void UsageTab::updateUnattributed() {
+    const auto footer = [](const Unattributed& u, const QString& tip)
+        -> std::optional<RankedList::Row> {
+        if (!u.shown) return std::nullopt;
+        RankedList::Row r;
+        r.label = tr("Unattributed");
+        r.tooltip = tip;
+        r.value = u.total();
+        r.down = u.down;
+        r.up = u.up;
+        return r;   // no key: nothing to exclude
+    };
+    const QString why = tr(
+        "Counted on your network interfaces but not credited to any %1.\n"
+        "Usually: virtual machines, containers, kernel traffic such as WireGuard,\n"
+        "forwarded packets, or history recorded by an older bandsightd.\n"
+        "Included in the total; it cannot be excluded.");
+
+    quint64 down = 0, up = 0;
+    for (const AppTotal& t : totals_) { down += t.rx; up += t.tx; }
+    apps_->setFooterRow(footer(unattributed(split_down_, split_up_, down, up),
+                               why.arg(tr("application"))));
+
+    // Not when host recording began inside the period, or there is none: the
+    // shortfall is then expected, and the note under the list says why.
+    std::optional<RankedList::Row> host_footer;
+    if (hosts_collected_ && hosts_since_ <= 0 && !pairs_.isEmpty()) {
+        quint64 hd = 0, hu = 0;
+        for (const AppHostTotal& p : pairs_) { hd += p.rx; hu += p.tx; }
+        host_footer = footer(unattributed(split_down_, split_up_, hd, hu),
+                             why.arg(tr("host")));
+    }
+    hosts_list_->setFooterRow(host_footer);
 }
 
 void UsageTab::setPeriod(const QString& label) {

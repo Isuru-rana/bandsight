@@ -46,7 +46,8 @@ int RankedList::shownRows() const {
     // The last line needs no padding below it: a row's content is the text,
     // a 3 px gap and the bar.
     const int content = fontMetrics().height() + 3 + kBarHeight;
-    const int fit = height() < content ? 0 : (height() - content) / qMax(1, rowHeight()) + 1;
+    int fit = height() < content ? 0 : (height() - content) / qMax(1, rowHeight()) + 1;
+    if (footer_) fit = qMax(0, fit - 1);   // the footer's line is reserved
     if (rows_.size() <= fit) return int(rows_.size());
     return qMax(0, fit - 1);   // the last line that fits holds the count
 }
@@ -64,10 +65,18 @@ std::optional<RankedList::Row> RankedList::othersRow() const {
     return o;
 }
 
+void RankedList::setFooterRow(const std::optional<Row>& row) {
+    footer_ = row;
+    updateGeometry();
+    update();
+}
+
 QString RankedList::tooltipAt(const QPoint& pos) const {
     const int i = pos.y() / qMax(1, rowHeight());
     const int shown = shownRows();
     if (i >= 0 && i < shown) return rows_[i].tooltip;
+    const int footer_line = shown + (shown < rows_.size() ? 1 : 0);
+    if (footer_ && i == footer_line) return footer_->tooltip;
     if (i != shown || shown >= rows_.size()) return {};
 
     QStringList lines;
@@ -125,7 +134,7 @@ void RankedList::setShowChips(bool on) {
 // Asks for a few rows, not all of them: the card's height is the window's
 // decision, and whatever does not fit is counted on the last line.
 QSize RankedList::sizeHint() const {
-    return {220, qBound(1, int(rows_.size()), 6) * rowHeight()};
+    return {220, (qBound(1, int(rows_.size()), 6) + (footer_ ? 1 : 0)) * rowHeight()};
 }
 
 QSize RankedList::minimumSizeHint() const { return {120, 2 * rowHeight()}; }
@@ -135,7 +144,7 @@ void RankedList::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    if (rows_.isEmpty()) {
+    if (rows_.isEmpty() && !footer_) {
         p.setPen(t.ink_muted);
         p.drawText(rect(), Qt::AlignCenter, tr("Nothing in this period"));
         return;
@@ -146,18 +155,22 @@ void RankedList::paintEvent(QPaintEvent*) {
     const int text_h = fontMetrics().height();
     const int shown = shownRows();
     const std::optional<Row> others = othersRow();
-    const int lines = shown + (others ? 1 : 0);
+    const int body = shown + (others ? 1 : 0);
+    const int lines = body + (footer_ ? 1 : 0);
 
     for (int i = 0; i < lines; ++i) {
         // The others row is drawn like any other, minus the chip: it is not one
         // application, so an initial would claim an identity it does not have.
-        const bool is_others = i == shown;
-        const Row& r = is_others ? *others : rows_[i];
+        // The footer is drawn the same way, for the same reason.
+        const bool is_footer = footer_ && i == body;
+        const bool is_others = !is_footer && i == shown;
+        const Row& r = is_footer ? *footer_ : is_others ? *others : rows_[i];
+        const bool muted = is_others || is_footer;
         const int y = i * rh;
 
         const QString value = format_volume(r.value);
         const int value_w = fontMetrics().horizontalAdvance(value) + 8;
-        const bool out = excluded_.contains(r.key);
+        const bool out = !is_footer && excluded_.contains(r.key);
 
         // Struck through and dimmed rather than removed: the row is filtered out
         // of a total, not gone, and it has to stay clickable to come back.
@@ -167,7 +180,7 @@ void RankedList::paintEvent(QPaintEvent*) {
 
         // The chip goes first, so the eye has a fixed left edge to run down.
         const int chip = chipSize();
-        if (show_chips_ && !is_others) {
+        if (show_chips_ && !muted) {
             const QRect chip_box(0, y, chip, chip);
             if (out) p.setOpacity(0.35);   // filtered rows recede, chip and all
             paint_identity_chip(p, chip_box, r.label);
@@ -177,7 +190,7 @@ void RankedList::paintEvent(QPaintEvent*) {
         const int text_x = show_chips_ ? chip + kChipGap : 0;
         const int text_w = width() - value_w - text_x;
 
-        p.setPen(out ? t.ink_faint : is_others ? t.ink_muted : t.ink);
+        p.setPen(out ? t.ink_faint : muted ? t.ink_muted : t.ink);
         // The name is elided, never wrapped: a wrapped row breaks the constant
         // row height the eye is using to scan the column.
         // A tag follows the label in muted ink; the label gives up width to it,
@@ -202,8 +215,8 @@ void RankedList::paintEvent(QPaintEvent*) {
         // Proportion bar, scaled to the largest row. Rounded data-end, flat
         // start: it grows from a baseline rather than floating.
         const int bar_y = y + text_h + 3;
-        // The others row can sum past the largest single row; its bar stops at
-        // full width rather than running off the card.
+        // The others row and the footer can exceed the largest single row; their
+        // bars stop at full width rather than running off the card.
         const double frac = max ? qMin(1.0, double(r.value) / double(max)) : 0.0;
         // Aligned with the label rather than the chip, so the bars form one
         // straight edge down the column.

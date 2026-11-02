@@ -111,6 +111,7 @@ if(BANDSIGHT_BUILD_GUI)
       gui/host_class.cpp
       gui/smooth.cpp
       gui/quota.cpp
+      gui/unattributed.cpp
       gui/quota_bar.cpp
       gui/settings_dialog.cpp
       gui/failure.cpp
