@@ -20,6 +20,12 @@ namespace {
 // Generous next to a real command (tens of bytes) and small next to the unit's
 // MemoryMax=128M.
 constexpr std::size_t kMaxCommandBytes = 64 * 1024;
+
+// One GUI per logged-in user needs a handful. Without a cap, a group member
+// holding connections open used up the daemon's descriptors, after which the
+// per-tick netlink socket could not be created and interface accounting
+// stopped.
+constexpr std::size_t kMaxClients = 64;
 }  // namespace
 
 UnixSocketControl::UnixSocketControl(std::string socket_path)
@@ -174,6 +180,16 @@ void UnixSocketControl::accept_clients() {
             return;
         }
 
+        if (clients_.size() >= kMaxClients) {
+            if (!refusing_logged_) {
+                std::fprintf(stderr, "bandsightd: %zu control clients connected; "
+                                     "refusing more\n", clients_.size());
+                refusing_logged_ = true;
+            }
+            ::close(fd);
+            continue;
+        }
+
         // Diagnostics only. Authorization already happened: the kernel checked
         // write permission on the socket path at connect(), against the caller's
         // full credential set including supplementary groups.
@@ -287,6 +303,7 @@ void UnixSocketControl::drop(int fd) {
     ::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
     ::close(fd);
     clients_.erase(fd);
+    refusing_logged_ = false;
 }
 
 void UnixSocketControl::poll(int timeout_ms) {
