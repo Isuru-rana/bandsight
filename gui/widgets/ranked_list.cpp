@@ -19,6 +19,15 @@ constexpr int kChipGap = 8;
 // The hidden-rows tooltip is a rough idea, not an inventory: hundreds of hosts
 // would cover the screen.
 constexpr int kMaxHiddenListed = 25;
+
+// Every row's tooltip opens with its full label, which the column may have
+// elided: two rows elided to the same text must still be told apart by
+// hovering. The caller's own tooltip (path, address, top apps) follows.
+QString full_tooltip(const RankedList::Row& r) {
+    if (r.tooltip.isEmpty() || r.tooltip == r.label) return r.label;
+    if (r.tooltip.startsWith(r.label + QLatin1Char('\n'))) return r.tooltip;
+    return r.label + QLatin1Char('\n') + r.tooltip;
+}
 }  // namespace
 
 RankedList::RankedList(QWidget* parent) : QWidget(parent) {
@@ -74,7 +83,7 @@ void RankedList::setFooterRow(const std::optional<Row>& row) {
 QString RankedList::tooltipAt(const QPoint& pos) const {
     const int i = pos.y() / qMax(1, rowHeight());
     const int shown = shownRows();
-    if (i >= 0 && i < shown) return rows_[i].tooltip;
+    if (i >= 0 && i < shown) return full_tooltip(rows_[i]);
     const int footer_line = shown + (shown < rows_.size() ? 1 : 0);
     if (footer_ && i == footer_line) return footer_->tooltip;
     if (i != shown || shown >= rows_.size()) return {};
@@ -192,14 +201,18 @@ void RankedList::paintEvent(QPaintEvent*) {
 
         p.setPen(out ? t.ink_faint : muted ? t.ink_muted : t.ink);
         // The name is elided, never wrapped: a wrapped row breaks the constant
-        // row height the eye is using to scan the column.
+        // row height the eye is using to scan the column. In the MIDDLE: the
+        // part that tells two rows apart is usually at the end - the directory
+        // disambiguated_labels() appends ("chrome (chromium-browser)"), or the
+        // tail of a host name ("teams.public.onecdn.static.microsoft") - and
+        // eliding on the right cut exactly that, leaving identical rows.
         // A tag follows the label in muted ink; the label gives up width to it,
         // never the other way round, so the tag is always readable.
         const int tag_w = r.tag.isEmpty()
                               ? 0
                               : fontMetrics().horizontalAdvance(r.tag) + kChipGap;
         const QString label =
-            fontMetrics().elidedText(r.label, Qt::ElideRight, qMax(0, text_w - tag_w));
+            fontMetrics().elidedText(r.label, Qt::ElideMiddle, qMax(0, text_w - tag_w));
         p.drawText(QRect(text_x, y, text_w, text_h), Qt::AlignVCenter | Qt::AlignLeft, label);
         if (!r.tag.isEmpty()) {
             p.setPen(out ? t.ink_faint : t.ink_muted);
