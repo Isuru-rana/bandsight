@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -265,7 +266,11 @@ void UnixSocketControl::handle_command(int fd, const std::string& line) {
 
 void UnixSocketControl::handle_readable(int fd) {
     char buf[2048];
-    for (;;) {
+    // Bounded per wakeup. Reading until EAGAIN let one client that writes as
+    // fast as it is read keep this loop - and so the whole daemon - here
+    // indefinitely: no tick ran, so nothing was counted or broadcast. What is
+    // left stays in the socket and is reported readable on the next poll().
+    for (std::size_t budget = kMaxCommandBytes; budget > 0;) {
         // Re-looked-up on every pass, not held across handle_command(): a ping
         // reply that fails to send drops the client from within handle_command,
         // which would otherwise leave this loop holding a dangling iterator
@@ -275,6 +280,7 @@ void UnixSocketControl::handle_readable(int fd) {
 
         const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
         if (n > 0) {
+            budget -= std::min(budget, static_cast<std::size_t>(n));
             it->second.inbuf.append(buf, static_cast<std::size_t>(n));
             // A client that never sends a newline would otherwise grow this
             // without limit inside a daemon with MemoryMax=128M, so a peer that
