@@ -349,9 +349,13 @@ void UnixSocketControl::poll(int timeout_ms) {
         const int fd = events[i].data.fd;
         if (fd == listen_fd_) {
             accept_clients();
-        } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+        } else if (events[i].events & EPOLLERR) {
             drop(fd);
         } else {
+            // EPOLLRDHUP/EPOLLHUP included: a peer that sends a command and then
+            // shuts down its write side (`... | socat - UNIX-CONNECT:...`) has
+            // that command waiting here. handle_readable() runs it and drops
+            // the client when recv() reaches end of stream.
             handle_readable(fd);
         }
     }
