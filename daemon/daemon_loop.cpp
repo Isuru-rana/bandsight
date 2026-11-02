@@ -156,11 +156,18 @@ void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
         if (pending_hosts_.size() >= kMaxPending) { ++pending_dropped_; continue; }
         pending_hosts_.push_back(d);
     }
-    if (pending_dropped_ > 0) {
+    // Only when something new was discarded, and at most once a minute: this
+    // runs on every failed tick, and printing the running total each time put
+    // a line a second in the journal for as long as the database stayed down.
+    const auto t = std::chrono::steady_clock::now();
+    if (pending_dropped_ > logged_dropped_ &&
+        (logged_dropped_ == 0 || t - last_drop_log_ >= std::chrono::minutes(1))) {
         std::fprintf(stderr,
                      "bandsightd: %lld drained deltas discarded; the database has "
                      "been unwritable long enough to fill the retry buffer\n",
                      static_cast<long long>(pending_dropped_));
+        logged_dropped_ = pending_dropped_;
+        last_drop_log_ = t;
     }
 }
 
