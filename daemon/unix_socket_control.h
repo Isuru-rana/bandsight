@@ -42,6 +42,9 @@ private:
     std::string hello_;
     std::unordered_map<int, Client> clients_;
     ConfigHandler config_handler_;
+
+    // Logs the first refusal past kMaxClients, not every one; reset by drop().
+    bool refusing_logged_ = false;
 };
 
 }  // namespace bandsight
