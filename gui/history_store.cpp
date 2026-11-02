@@ -162,9 +162,10 @@ void HistoryStore::queryIfaceTotalsRange(qint64 from, qint64 to, int res) {
     emit ifaceTotals(out);
 }
 
-// Restricted to the same interface kinds the Interfaces tab calls measured, and
-// for the same reason (spec §2.2): loopback and tunnel bytes are either counted
-// again on the physical interface underneath or never leave the machine. Summing
+// Restricted to the interface kinds the Interfaces tab calls measured (plus row
+// 0, below), and for the same reason (spec §2.2): loopback and tunnel bytes are
+// either counted again on the physical interface underneath or never leave the
+// machine. Summing
 // them here made a python process that talks to itself the largest consumer on
 // the system by three orders of magnitude - 4.83 TB in thirty days against 17 GB
 // of real traffic - while the Interfaces tab on the next tab along correctly
@@ -172,8 +173,13 @@ void HistoryStore::queryIfaceTotalsRange(qint64 from, qint64 to, int res) {
 // filtered in C++ so the database does the work; kind_is_measured() is the same
 // rule and the two must be changed together.
 //
-// It also drops rows whose iface_id is 0 (unknown egress), which the JOIN
-// excludes: an interface nobody could name cannot be shown to be measured.
+// Row 0 ("unknown") IS included. Dropping it hid most of the traffic of
+// route-less sockets - unconnected UDP: WebRTC calls, tailscaled's WireGuard,
+// some QUIC - which the Total above counted from the interface counters: 87% of
+// a 4.5 h selection was missing from the rows with nothing on screen saying so.
+// The daemon now credits loopback datagrams to lo even without a route, which
+// is what makes this safe from the loopback problem above. Container sockets
+// are stored under their own "other-netns" row (kind virtual) and stay out.
 //
 // Unlike queryIfaceTotals this INNER JOINs on app_samples, and deliberately so: an interface
 // with no samples is a fact worth showing ("not measured", spec §2.2), but the
@@ -196,7 +202,7 @@ void HistoryStore::queryAppTotalsRange(qint64 from, qint64 to, int res) {
         "SELECT a.id, a.exe, a.name, SUM(s.rx), SUM(s.tx) "
         "FROM apps a JOIN app_samples s ON s.app_id = a.id "
         "JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi') "
+        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
         "GROUP BY a.id HAVING SUM(s.rx) + SUM(s.tx) > 0 "
         "ORDER BY SUM(s.rx) + SUM(s.tx) DESC"));
     q.addBindValue(res);
@@ -287,7 +293,7 @@ void HistoryStore::emitHostPairs(qint64 from, qint64 to, qint64 data_end, int re
         "JOIN apps a ON a.id = s.app_id "
         "JOIN hosts h ON h.id = s.host_id "
         "JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi') "
+        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
         "GROUP BY a.id, h.id HAVING SUM(s.rx) + SUM(s.tx) > 0"));
     q.addBindValue(hres);
     q.addBindValue(start);
