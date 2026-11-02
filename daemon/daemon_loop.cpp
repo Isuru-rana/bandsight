@@ -304,6 +304,17 @@ void DaemonLoop::tick(std::int64_t now) {
         // drain above has had a chance to attribute their last bytes.
         resolver_.sweep_exited();
 
+        // The live frame is built here, before the retry buffer is merged in.
+        // Those bytes were already in the frame of the tick that drained them;
+        // sending them again on every tick until the database recovered showed
+        // one second of traffic once per failed tick.
+        std::vector<FrameIface> fi;
+        std::vector<FrameApp> fa;
+        if (control_) {
+            for (const auto& d : deltas) fi.push_back({d.ifindex, d.rx, d.tx});
+            for (const auto& d : app_deltas) fa.push_back({d.app_id, d.rx, d.tx, d.ifindex});
+        }
+
         // Anything a previous tick drained but could not write goes in with this
         // tick's data (I6). Merged before the write, so one failure does not
         // fork the retry path from the normal one.
@@ -378,15 +389,7 @@ void DaemonLoop::tick(std::int64_t now) {
             }
         }
 
-        if (control_) {
-            std::vector<FrameIface> fi;
-            for (const auto& d : deltas) fi.push_back({d.ifindex, d.rx, d.tx});
-            std::vector<FrameApp> fa;
-            for (const auto& d : app_deltas) {
-                fa.push_back({d.app_id, d.rx, d.tx, d.ifindex});
-            }
-            control_->broadcast(frame(encode_sample(now, fi, fa)));
-        }
+        if (control_) control_->broadcast(frame(encode_sample(now, fi, fa)));
     } catch (const std::exception& e) {
         log_tick_error(e.what());
     }
