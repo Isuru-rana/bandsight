@@ -176,7 +176,16 @@ void UnixSocketControl::accept_clients() {
             // the daemon burns a core doing nothing until a descriptor frees up.
             if (errno == EAGAIN || errno == EWOULDBLOCK) return;
             if (errno == EINTR || errno == ECONNABORTED) continue;   // retryable
-            std::fprintf(stderr, "bandsightd: accept failed: %s\n", strerror(errno));
+            // Returning alone did not stop the spin: the connection is still
+            // queued, so the next epoll_wait() reports it at once. Stop
+            // watching the listening socket for a second instead.
+            std::fprintf(stderr, "bandsightd: accept failed: %s; not accepting "
+                                 "for 1 s\n", strerror(errno));
+            struct epoll_event off{};
+            off.data.fd = listen_fd_;
+            ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, listen_fd_, &off);
+            accept_paused_ = true;
+            accept_resume_at_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
             return;
         }
 
@@ -320,6 +329,13 @@ void UnixSocketControl::poll(int timeout_ms) {
             ::nanosleep(&ts, nullptr);
         }
         return;
+    }
+    if (accept_paused_ && std::chrono::steady_clock::now() >= accept_resume_at_) {
+        struct epoll_event on{};
+        on.events = EPOLLIN;
+        on.data.fd = listen_fd_;
+        ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, listen_fd_, &on);
+        accept_paused_ = false;
     }
     struct epoll_event events[16];
     const int n = ::epoll_wait(epoll_fd_, events, 16, timeout_ms);

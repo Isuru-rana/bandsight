@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include <chrono>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -43,6 +44,11 @@ private:
     std::unordered_map<int, Client> clients_;
     ConfigHandler config_handler_;
 
+    // Set when accept() fails for want of descriptors. The listening socket is
+    // taken out of the epoll set until accept_resume_at_, or the level-triggered
+    // readiness of the still-queued connection spins the loop.
+    bool accept_paused_ = false;
+    std::chrono::steady_clock::time_point accept_resume_at_{};
     // Logs the first refusal past kMaxClients, not every one; reset by drop().
     bool refusing_logged_ = false;
 };
