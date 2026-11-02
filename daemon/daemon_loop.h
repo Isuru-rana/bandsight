@@ -95,6 +95,10 @@ private:
     std::vector<AppDelta> pending_apps_;
     std::vector<HostDelta> pending_hosts_;
     std::int64_t pending_dropped_ = 0;
+    // pending_dropped_ as of the last log line, and when that was: the discard
+    // message follows log_tick_error's once-a-minute limit.
+    std::int64_t logged_dropped_ = 0;
+    std::chrono::steady_clock::time_point last_drop_log_{};
 
     // Written rows that have not changed since we last wrote them. upsert_iface
     // ran for every interface and upsert_app for every active app on EVERY tick,

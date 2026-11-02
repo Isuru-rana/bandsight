@@ -156,11 +156,18 @@ void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
         if (pending_hosts_.size() >= kMaxPending) { ++pending_dropped_; continue; }
         pending_hosts_.push_back(d);
     }
-    if (pending_dropped_ > 0) {
+    // Only when something new was discarded, and at most once a minute: this
+    // runs on every failed tick, and printing the running total each time put
+    // a line a second in the journal for as long as the database stayed down.
+    const auto t = std::chrono::steady_clock::now();
+    if (pending_dropped_ > logged_dropped_ &&
+        (logged_dropped_ == 0 || t - last_drop_log_ >= std::chrono::minutes(1))) {
         std::fprintf(stderr,
                      "bandsightd: %lld drained deltas discarded; the database has "
                      "been unwritable long enough to fill the retry buffer\n",
                      static_cast<long long>(pending_dropped_));
+        logged_dropped_ = pending_dropped_;
+        last_drop_log_ = t;
     }
 }
 
@@ -304,6 +311,17 @@ void DaemonLoop::tick(std::int64_t now) {
         // drain above has had a chance to attribute their last bytes.
         resolver_.sweep_exited();
 
+        // The live frame is built here, before the retry buffer is merged in.
+        // Those bytes were already in the frame of the tick that drained them;
+        // sending them again on every tick until the database recovered showed
+        // one second of traffic once per failed tick.
+        std::vector<FrameIface> fi;
+        std::vector<FrameApp> fa;
+        if (control_) {
+            for (const auto& d : deltas) fi.push_back({d.ifindex, d.rx, d.tx});
+            for (const auto& d : app_deltas) fa.push_back({d.app_id, d.rx, d.tx, d.ifindex});
+        }
+
         // Anything a previous tick drained but could not write goes in with this
         // tick's data (I6). Merged before the write, so one failure does not
         // fork the retry path from the normal one.
@@ -378,15 +396,7 @@ void DaemonLoop::tick(std::int64_t now) {
             }
         }
 
-        if (control_) {
-            std::vector<FrameIface> fi;
-            for (const auto& d : deltas) fi.push_back({d.ifindex, d.rx, d.tx});
-            std::vector<FrameApp> fa;
-            for (const auto& d : app_deltas) {
-                fa.push_back({d.app_id, d.rx, d.tx, d.ifindex});
-            }
-            control_->broadcast(frame(encode_sample(now, fi, fa)));
-        }
+        if (control_) control_->broadcast(frame(encode_sample(now, fi, fa)));
     } catch (const std::exception& e) {
         log_tick_error(e.what());
     }

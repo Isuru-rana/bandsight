@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -20,6 +21,12 @@ namespace {
 // Generous next to a real command (tens of bytes) and small next to the unit's
 // MemoryMax=128M.
 constexpr std::size_t kMaxCommandBytes = 64 * 1024;
+
+// One GUI per logged-in user needs a handful. Without a cap, a group member
+// holding connections open used up the daemon's descriptors, after which the
+// per-tick netlink socket could not be created and interface accounting
+// stopped.
+constexpr std::size_t kMaxClients = 64;
 }  // namespace
 
 UnixSocketControl::UnixSocketControl(std::string socket_path)
@@ -170,8 +177,27 @@ void UnixSocketControl::accept_clients() {
             // the daemon burns a core doing nothing until a descriptor frees up.
             if (errno == EAGAIN || errno == EWOULDBLOCK) return;
             if (errno == EINTR || errno == ECONNABORTED) continue;   // retryable
-            std::fprintf(stderr, "bandsightd: accept failed: %s\n", strerror(errno));
+            // Returning alone did not stop the spin: the connection is still
+            // queued, so the next epoll_wait() reports it at once. Stop
+            // watching the listening socket for a second instead.
+            std::fprintf(stderr, "bandsightd: accept failed: %s; not accepting "
+                                 "for 1 s\n", strerror(errno));
+            struct epoll_event off{};
+            off.data.fd = listen_fd_;
+            ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, listen_fd_, &off);
+            accept_paused_ = true;
+            accept_resume_at_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
             return;
+        }
+
+        if (clients_.size() >= kMaxClients) {
+            if (!refusing_logged_) {
+                std::fprintf(stderr, "bandsightd: %zu control clients connected; "
+                                     "refusing more\n", clients_.size());
+                refusing_logged_ = true;
+            }
+            ::close(fd);
+            continue;
         }
 
         // Diagnostics only. Authorization already happened: the kernel checked
@@ -240,7 +266,11 @@ void UnixSocketControl::handle_command(int fd, const std::string& line) {
 
 void UnixSocketControl::handle_readable(int fd) {
     char buf[2048];
-    for (;;) {
+    // Bounded per wakeup. Reading until EAGAIN let one client that writes as
+    // fast as it is read keep this loop - and so the whole daemon - here
+    // indefinitely: no tick ran, so nothing was counted or broadcast. What is
+    // left stays in the socket and is reported readable on the next poll().
+    for (std::size_t budget = kMaxCommandBytes; budget > 0;) {
         // Re-looked-up on every pass, not held across handle_command(): a ping
         // reply that fails to send drops the client from within handle_command,
         // which would otherwise leave this loop holding a dangling iterator
@@ -250,6 +280,7 @@ void UnixSocketControl::handle_readable(int fd) {
 
         const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
         if (n > 0) {
+            budget -= std::min(budget, static_cast<std::size_t>(n));
             it->second.inbuf.append(buf, static_cast<std::size_t>(n));
             // A client that never sends a newline would otherwise grow this
             // without limit inside a daemon with MemoryMax=128M, so a peer that
@@ -287,6 +318,7 @@ void UnixSocketControl::drop(int fd) {
     ::epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
     ::close(fd);
     clients_.erase(fd);
+    refusing_logged_ = false;
 }
 
 void UnixSocketControl::poll(int timeout_ms) {
@@ -304,15 +336,26 @@ void UnixSocketControl::poll(int timeout_ms) {
         }
         return;
     }
+    if (accept_paused_ && std::chrono::steady_clock::now() >= accept_resume_at_) {
+        struct epoll_event on{};
+        on.events = EPOLLIN;
+        on.data.fd = listen_fd_;
+        ::epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, listen_fd_, &on);
+        accept_paused_ = false;
+    }
     struct epoll_event events[16];
     const int n = ::epoll_wait(epoll_fd_, events, 16, timeout_ms);
     for (int i = 0; i < n; ++i) {
         const int fd = events[i].data.fd;
         if (fd == listen_fd_) {
             accept_clients();
-        } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+        } else if (events[i].events & EPOLLERR) {
             drop(fd);
         } else {
+            // EPOLLRDHUP/EPOLLHUP included: a peer that sends a command and then
+            // shuts down its write side (`... | socat - UNIX-CONNECT:...`) has
+            // that command waiting here. handle_readable() runs it and drops
+            // the client when recv() reaches end of stream.
             handle_readable(fd);
         }
     }

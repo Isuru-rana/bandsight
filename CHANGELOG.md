@@ -3,6 +3,20 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
+## [Unreleased]
+
+### Changed
+- Control socket: at most 64 clients, extra connections closed
+
+### Fixed
+- Daemon stalls (no counting) while one client floods commands
+- 100% CPU and log flood when the daemon runs out of file descriptors
+- Command lost when the client half-closes right after sending
+- Settings change reported as saved when the database write failed
+- Live graph repeats the same traffic while the database is unwritable
+- "Deltas discarded" log line every second during a long disk-full
+- deb/rpm upgrade re-enables and starts a disabled bandsightd
+
 ## [0.3.0] - 2026-10-31
 
 ### Added
