@@ -57,6 +57,16 @@ struct {
     __type(value, struct sock_val);
 } map_sock SEC(".maps");
 
+// Bytes that could not be recorded per-app because map_app was full. Unlike a
+// full map_sock, this loses them from the Apps breakdown entirely; they still
+// show in the interface totals.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u64);
+} app_dropped SEC(".maps");
+
 // Bytes that could not be recorded per-socket because map_sock was full. The
 // per-app totals are unaffected (map_app is updated first, independently); only
 // the host breakdown is short by this much.
@@ -203,6 +213,11 @@ static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u
             __sync_fetch_and_add(&v->tx, (__u64)bytes);
             __sync_fetch_and_add(&v->tx_pkts, 1);
         }
+    } else {
+        __u32 zero = 0;
+        __u64 *d = bpf_map_lookup_elem(&app_dropped, &zero);
+        if (d)
+            __sync_fetch_and_add(d, (__u64)bytes);
     }
 
     // After map_app, and independent of it: a full map_sock must never cost

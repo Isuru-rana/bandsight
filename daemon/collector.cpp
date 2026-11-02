@@ -64,6 +64,12 @@ struct Collector::Impl {
     bool drop_log_started = false;
     std::chrono::steady_clock::time_point last_drop_log{};
 
+    // app_dropped rate-limit state, same shape as the events_dropped fields.
+    std::uint64_t app_drop_total = 0;
+    std::uint64_t app_drops_since_log = 0;
+    bool app_drop_log_started = false;
+    std::chrono::steady_clock::time_point last_app_drop_log{};
+
     // sock_dropped rate-limit state, same shape as the events_dropped fields.
     std::uint64_t sock_drop_total = 0;
     std::uint64_t sock_drops_since_log = 0;
@@ -276,6 +282,7 @@ std::vector<std::pair<K, V>> drain_hash(int fd, const char* what) {
 
 std::vector<std::pair<AppKey, AppVal>> Collector::drain_app() {
     if (degraded_ || !impl_->skel) return {};
+    check_app_dropped();
     return drain_hash<AppKey, AppVal>(bpf_map__fd(impl_->skel->maps.map_app), "map_app");
 }
 
@@ -283,6 +290,31 @@ std::vector<std::pair<SockKey, SockVal>> Collector::drain_sock() {
     if (degraded_ || !impl_->skel) return {};
     check_sock_dropped();
     return drain_hash<SockKey, SockVal>(bpf_map__fd(impl_->skel->maps.map_sock), "map_sock");
+}
+
+void Collector::check_app_dropped() {
+    const int fd = bpf_map__fd(impl_->skel->maps.app_dropped);
+    if (fd < 0) return;
+
+    const __u32 key = 0;
+    __u64 total = 0;
+    if (bpf_map_lookup_elem(fd, &key, &total) != 0) return;
+    if (total <= impl_->app_drop_total) return;  // nothing new since the last read
+
+    impl_->app_drops_since_log += total - impl_->app_drop_total;
+    impl_->app_drop_total = total;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (!impl_->app_drop_log_started ||
+        now - impl_->last_app_drop_log >= std::chrono::minutes(1)) {
+        std::fprintf(stderr,
+                     "bandsightd: %llu bytes from full app map - per-app totals "
+                     "incomplete\n",
+                     static_cast<unsigned long long>(impl_->app_drops_since_log));
+        impl_->app_drop_log_started = true;
+        impl_->last_app_drop_log = now;
+        impl_->app_drops_since_log = 0;
+    }
 }
 
 void Collector::check_sock_dropped() {
