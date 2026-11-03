@@ -3,7 +3,7 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
-## [Unreleased]
+## [0.3.1] - 2026-11-03
 
 ### Added
 - "Unattributed" row in Apps and Hosts when they cover less than the total
