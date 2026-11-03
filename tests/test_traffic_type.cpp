@@ -66,9 +66,16 @@ void service_port_rule() {
     // An unconnected listener outside the range keeps its port.
     CHECK(service_port(kUdp, 20000, 0, eph) == 20000);
 
-    // Both known: decided by who connected.
-    CHECK(service_port(kUdp, 41641, 3478, eph) == 3478);   // 41641 is in the range
-    CHECK(service_port(kTcp, 1883, 3478, eph) == 1883);    // 1883 is not
+    // Both known: the lower port.
+    CHECK(service_port(kUdp, 41641, 3478, eph) == 3478);   // Tailscale doing STUN
+    CHECK(service_port(kTcp, 1883, 3478, eph) == 1883);
+    CHECK(service_port(kUdp, 123, 123, eph) == 123);       // NTP between servers
+    // A reserved client source port never names the service, on either side.
+    CHECK(service_port(kTcp, 600, 111, eph) == 111);       // rpcbind client
+    CHECK(service_port(kTcp, 111, 734, eph) == 111);       // the rpcbind server
+    CHECK(service_port(kTcp, 1010, 22, eph) == 22);        // ssh from a reserved port
+    for (std::uint16_t src = 512; src < 1024; ++src)
+        CHECK(service_port(kTcp, src, 443, eph) == 443);
 
     // A protocol-specific port does not count for the other protocol.
     CHECK(is_known_service_port(kUdp, 51820));
@@ -119,10 +126,23 @@ void aggregation() {
     add(kTcp, 50004, 443, 9, 1, 1);      // unknown interface -> clamped to 0
     add(kUdp, 50005, 60000, 2, 7, 7);    // other
     add(kTcp, 50006, 443, 2, 0, 0);      // nothing moved: no row
+    // Containers: their own port range, so only well-known ports are kept.
+    add(kTcp, 20001, 9000, 77, 3, 3);    // client port 20001 in the container's range
+    add(kTcp, 20002, 9000, 77, 4, 4);
+    add(kTcp, 45000, 443, 77, 5, 5);     // HTTPS from a container
 
-    const auto out = aggregate_types(socks, eph,
-                                     [](std::uint32_t i) { return i == 2 ? 2 : 0; });
-    CHECK(out.size() == 4);
+    const auto out = aggregate_types(socks, eph, [](std::uint32_t i) {
+        return i == 2 ? 2 : i == 77 ? kIfaceOtherNetns : 0;
+    });
+    CHECK(out.size() == 6);
+    bool ns_other = false, ns_https = false;
+    for (const auto& d : out) {
+        if (d.ifindex != kIfaceOtherNetns) continue;
+        if (d.port == 0) ns_other = d.rx == 7 && d.tx == 7;
+        else if (d.port == 443) ns_https = d.rx == 5;
+        else CHECK(false);   // a raw container client port was stored
+    }
+    CHECK(ns_other && ns_https);
     bool https = false, quic = false, unknown_if = false, other = false;
     for (const auto& d : out) {
         if (d.ifindex == 2 && d.proto == kTcp && d.port == 443)

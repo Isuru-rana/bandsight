@@ -40,7 +40,11 @@ std::uint16_t service_port(std::uint8_t proto, std::uint16_t lport, std::uint16_
     const bool kl = is_known_service_port(proto, lport);
     const bool kr = is_known_service_port(proto, rport);
     if (kl != kr) return kl ? lport : rport;
-    if (kl) return eph.contains(lport) ? rport : lport;   // both known
+    // Both known: the lower one. A client on a reserved source port (rpcbind
+    // and NFS helpers, rsh: a random port in 512-1023 via bindresvport) would
+    // otherwise be stored under that port, one row per connection; the
+    // service it talks to is the lower port in every such pairing.
+    if (kl) return lport < rport ? lport : rport;
 
     // Neither is known. Only a port this machine listens on is kept: there are
     // few of those (a dev server, a database). A remote port is whatever a
@@ -60,7 +64,11 @@ std::vector<TypeDelta> aggregate_types(
         const SockVal& v = entry.second;
         if (v.rx == 0 && v.tx == 0) continue;
         const int ifx = iface_of(v.ifindex);
-        const int port = service_port(v.proto, v.lport, v.rport, eph);
+        int port = service_port(v.proto, v.lport, v.rport, eph);
+        // A container has its own ip_local_port_range, so whether its local
+        // port is a listener cannot be judged by ours: only a well-known port
+        // is kept for it.
+        if (ifx == kIfaceOtherNetns && !is_known_service_port(v.proto, port)) port = 0;
         TypeDelta& d = acc[{ifx, v.proto, port}];
         d.ifindex = ifx;
         d.proto = v.proto;

@@ -31,8 +31,8 @@ bool is_known_service_port(std::uint8_t proto, std::uint16_t port);
 
 // Which of a socket's two ports identifies the service, 0 for "other":
 //   - exactly one side is a known service port: that side;
-//   - both known: the remote one if this end initiated (local port in the
-//     ephemeral range), otherwise the local one;
+//   - both known: the lower one (a reserved client source port is always
+//     above the service it talks to);
 //   - neither known: the local port, only if this machine is the listening
 //     side (local port outside the ephemeral range and below 49152);
 //     otherwise 0. An unknown remote port is never stored: peers pick them
@@ -42,7 +42,8 @@ std::uint16_t service_port(std::uint8_t proto, std::uint16_t lport, std::uint16_
                            const EphemeralRange& eph);
 
 // One tick of drained sockets -> one delta per (interface, proto, port).
-// iface_of is the same ifindex clamp the app and host paths use. Sorted.
+// iface_of is the same ifindex clamp the app and host paths use. Sockets in
+// another network namespace keep only well-known ports. Sorted.
 std::vector<TypeDelta> aggregate_types(
     const std::vector<std::pair<SockKey, SockVal>>& entries, const EphemeralRange& eph,
     const std::function<int(std::uint32_t)>& iface_of);
