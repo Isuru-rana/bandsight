@@ -42,20 +42,33 @@ void service_port_rule() {
     CHECK(service_port(kUdp, 5353, 0, eph) == 5353);       // mDNS
     CHECK(service_port(kUdp, 50000, 19305, eph) == 19305); // Google STUN
 
-    // Neither known: the remote port if this end connected, else the local one.
-    CHECK(service_port(kTcp, 45000, 8080, eph) == 8080);   // client to a dev server
-    CHECK(service_port(kTcp, 8080, 45000, eph) == 8080);   // the dev server
-    CHECK(service_port(kTcp, 5432, 33000, eph) == 5432);   // postgres server
+    // Client to a known service.
+    CHECK(service_port(kTcp, 45000, 443, eph) == 443);
 
-    // Both in the dynamic range: other.
+    // Neither known: a local listening port is kept, a remote one never is.
+    CHECK(service_port(kTcp, 8080, 45000, eph) == 8080);   // local dev server
+    CHECK(service_port(kTcp, 5432, 33000, eph) == 5432);   // local postgres
+    CHECK(service_port(kTcp, 3000, 61000, eph) == 3000);   // remote outside the range
+    CHECK(service_port(kUdp, 45000, 37000, eph) == 0);     // client to a peer's port
+    CHECK(service_port(kTcp, 45000, 8080, eph) == 0);      // client to a remote 8080
+    CHECK(service_port(kTcp, 50000, 20000, eph) == 0);
+    CHECK(service_port(kTcp, 33000, 55555, eph) == 0);
+    // P2P: many peers on random ports collapse into one row.
+    for (std::uint16_t peer = 1024; peer < 49152; peer += 977)
+        CHECK(service_port(kUdp, 40000, peer, eph) == 0);
+
+    // Dynamic range on both sides, or as the only candidate: other.
     CHECK(service_port(kUdp, 50000, 60000, eph) == 0);
     CHECK(service_port(kTcp, 61000, 62000, eph) == 0);
-    // An unknown dynamic-range port is never stored as itself.
-    CHECK(service_port(kTcp, 20000, 55555, eph) == 20000);   // server on 20000
-    CHECK(service_port(kTcp, 33000, 55555, eph) == 0);       // client, dynamic remote
-    CHECK(service_port(kTcp, 50000, 20000, eph) == 20000);   // registered port kept
+    CHECK(service_port(kTcp, 62000, 20000, eph) == 0);     // local above the range
     // Unconnected UDP from an ephemeral port: no remote port, other.
     CHECK(service_port(kUdp, 45000, 0, eph) == 0);
+    // An unconnected listener outside the range keeps its port.
+    CHECK(service_port(kUdp, 20000, 0, eph) == 20000);
+
+    // Both known: decided by who connected.
+    CHECK(service_port(kUdp, 41641, 3478, eph) == 3478);   // 41641 is in the range
+    CHECK(service_port(kTcp, 1883, 3478, eph) == 1883);    // 1883 is not
 
     // A protocol-specific port does not count for the other protocol.
     CHECK(is_known_service_port(kUdp, 51820));
@@ -64,11 +77,12 @@ void service_port_rule() {
     CHECK(is_known_service_port(kTcp, 1023));
     CHECK(!is_known_service_port(kTcp, 1024));
 
-    // A narrowed ephemeral range changes who is the client.
+    // A narrowed ephemeral range changes who is the listener.
     EphemeralRange narrow;
     narrow.lo = 50000;
     narrow.hi = 50100;
     CHECK(service_port(kTcp, 45000, 8080, narrow) == 45000);
+    CHECK(service_port(kTcp, 50050, 8080, narrow) == 0);
 }
 
 void ephemeral_range_file() {

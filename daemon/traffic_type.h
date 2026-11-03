@@ -31,10 +31,12 @@ bool is_known_service_port(std::uint8_t proto, std::uint16_t port);
 
 // Which of a socket's two ports identifies the service, 0 for "other":
 //   - exactly one side is a known service port: that side;
-//   - both sides in the dynamic range (>= 49152): 0;
-//   - else the remote port if this end initiated (local port ephemeral),
-//     otherwise the local port;
-//   - an unknown port >= 49152 is 0, so the stored set stays small.
+//   - both known: the remote one if this end initiated (local port in the
+//     ephemeral range), otherwise the local one;
+//   - neither known: the local port, only if this machine is the listening
+//     side (local port outside the ephemeral range and below 49152);
+//     otherwise 0. An unknown remote port is never stored: peers pick them
+//     at random, and each one would be a row of its own.
 // An unconnected UDP socket has rport 0 and therefore usually lands on 0.
 std::uint16_t service_port(std::uint8_t proto, std::uint16_t lport, std::uint16_t rport,
                            const EphemeralRange& eph);

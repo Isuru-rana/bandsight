@@ -40,11 +40,16 @@ std::uint16_t service_port(std::uint8_t proto, std::uint16_t lport, std::uint16_
     const bool kl = is_known_service_port(proto, lport);
     const bool kr = is_known_service_port(proto, rport);
     if (kl != kr) return kl ? lport : rport;
-    if (!kl && lport >= 49152 && rport >= 49152) return 0;
+    if (kl) return eph.contains(lport) ? rport : lport;   // both known
 
-    const std::uint16_t p = eph.contains(lport) ? rport : lport;
-    if (p >= 49152 && !is_known_service_port(proto, p)) return 0;
-    return p;
+    // Neither is known. Only a port this machine listens on is kept: there are
+    // few of those (a dev server, a database). A remote port is whatever a
+    // peer happened to pick - P2P and WebRTC peers use random ports anywhere
+    // in 1024-65535 - and keeping it would add a row per peer, forever in the
+    // daily tier.
+    if (eph.contains(lport)) return 0;   // this end connected: remote port
+    if (lport >= 49152) return 0;        // dynamic range, also never a service
+    return lport;
 }
 
 std::vector<TypeDelta> aggregate_types(
