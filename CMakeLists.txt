@@ -113,6 +113,7 @@ if(BANDSIGHT_BUILD_GUI)
       gui/smooth.cpp
       gui/quota.cpp
       gui/unattributed.cpp
+      gui/service_names.cpp
       gui/quota_bar.cpp
       gui/settings_dialog.cpp
       gui/failure.cpp
