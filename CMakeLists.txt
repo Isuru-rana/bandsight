@@ -189,6 +189,18 @@ if(BANDSIGHT_BUILD_TESTS)
     target_include_directories(test_history_query PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_history_query PRIVATE bandsight_core Qt6::Core Qt6::Sql)
     add_test(NAME history_query COMMAND test_history_query)
+
+    # The GUI's own sources minus main(), so the test drives the real widgets.
+    get_target_property(_gui_sources bandsight SOURCES)
+    list(REMOVE_ITEM _gui_sources gui/main.cpp)
+    add_executable(test_usage_tab tests/test_usage_tab.cpp ${_gui_sources})
+    set_target_properties(test_usage_tab PROPERTIES AUTOMOC ON AUTORCC ON)
+    target_include_directories(test_usage_tab PRIVATE
+        ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon)
+    target_link_libraries(test_usage_tab PRIVATE
+        Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
+    add_test(NAME usage_tab COMMAND test_usage_tab)
+    set_tests_properties(usage_tab PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 endif()
 
