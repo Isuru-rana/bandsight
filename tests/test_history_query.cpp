@@ -74,14 +74,16 @@ int main(int argc, char** argv) {
     QVector<gui::TypeTotal> types;
     bool collected = false;
     qint64 since = -1;
+    bool query_ok = false;
     QObject::connect(&h, &gui::HistoryStore::typeTotals,
-                     [&](const QVector<gui::TypeTotal>& t, bool c, qint64 s) {
+                     [&](const QVector<gui::TypeTotal>& t, bool c, qint64 s, bool ok) {
                          types = t;
                          collected = c;
                          since = s;
+                         query_ok = ok;
                      });
     h.queryTypeTotalsRange(ts, ts + 59, 60);
-    CHECK(collected);
+    CHECK(collected && query_ok);
     CHECK(since == 0);   // recording began at or before the period
     CHECK(types.size() == 2);
     rx = tx = 0;
@@ -122,6 +124,19 @@ int main(int argc, char** argv) {
     collected = true;
     h.queryTypeTotalsRange(ts, ts + 59, 60);
     CHECK(!collected);
+    CHECK(types.isEmpty());
+
+    // A table the query cannot read: reported as a failure, not as no traffic.
+    {
+        sqlite3* db = nullptr;
+        sqlite3_open(path.toUtf8().constData(), &db);
+        sqlite3_exec(db, "CREATE TABLE type_samples(x)", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    h.open(path);
+    query_ok = true;
+    h.queryTypeTotalsRange(ts, ts + 59, 60);
+    CHECK(collected && !query_ok);
     CHECK(types.isEmpty());
 
     if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);

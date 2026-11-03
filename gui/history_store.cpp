@@ -346,7 +346,7 @@ void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int r
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='type_samples'"))
         && probe.next() && probe.value(0).toInt() == 1;
     if (!collected) {
-        emit typeTotals({}, false, 0);
+        emit typeTotals({}, false, 0, true);
         return;
     }
 
@@ -374,6 +374,7 @@ void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int r
     }
 
     QVector<TypeTotal> out;
+    bool ok = true;
     QSqlQuery q(db_);
     q.prepare(QStringLiteral(
         "SELECT s.proto, s.port, SUM(s.rx), SUM(s.tx) "
@@ -395,8 +396,9 @@ void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int r
     } else {
         qWarning() << "bandsight: type totals query failed, emitting an empty"
                    << "table:" << q.lastError().text();
+        ok = false;
     }
-    emit typeTotals(out, true, since);
+    emit typeTotals(out, true, since, ok);
 }
 
 namespace {

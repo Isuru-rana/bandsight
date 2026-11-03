@@ -159,6 +159,14 @@ int main(int argc, char** argv) {
     tab.setTypeTotals({}, true, 0);
     CHECK(tab.trafficNote()->text() == QLatin1String("No traffic in this period"));
 
+    // A failed query is not an empty period.
+    tab.setTypeTotals({type(6, 443, 1, 1)}, true, 0);
+    CHECK(types && types->isVisible());
+    tab.setTypeTotals({}, true, 0, false);
+    CHECK(tab.trafficNote()->text() == QLatin1String("Traffic types could not be read."));
+    CHECK(tab.trafficNote()->isVisible());
+    CHECK(types && !types->isVisible());
+
     if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);
     else std::printf("test_usage_tab: all checks passed\n");
     return g_failures ? 1 : 0;

@@ -63,8 +63,9 @@ signals:
     void hostPairs(QVector<AppHostTotal> pairs, bool collected, qint64 since);
     // collected=false: no type_samples table (only a daemon older than the
     // Traffic type column has touched the database). since: when type
-    // recording began, if that is inside the period (0 otherwise).
-    void typeTotals(QVector<TypeTotal> totals, bool collected, qint64 since);
+    // recording began, if that is inside the period (0 otherwise). ok=false:
+    // the query failed and totals is empty, which is not an idle period.
+    void typeTotals(QVector<TypeTotal> totals, bool collected, qint64 since, bool ok);
     void quota(QuotaInfo info);
 
 private:

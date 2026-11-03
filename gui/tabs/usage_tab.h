@@ -72,8 +72,10 @@ public slots:
     // Bytes per (protocol, service port) for the period, one row per service
     // name. Not clickable: there is no type exclusion. collected=false means
     // the daemon predates type recording; since: when it began, if inside the
-    // period (0 otherwise).
-    void setTypeTotals(const QVector<TypeTotal>& totals, bool collected, qint64 since = 0);
+    // period (0 otherwise). ok=false: the query failed, so the empty list is
+    // not "no traffic".
+    void setTypeTotals(const QVector<TypeTotal>& totals, bool collected, qint64 since = 0,
+                       bool ok = true);
     QSet<QString> excluded() const;
 
     // Test-only, same rationale as the rest here.

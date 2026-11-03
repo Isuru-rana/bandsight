@@ -239,7 +239,7 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
 }
 
 void UsageTab::setTypeTotals(const QVector<TypeTotal>& totals, bool collected,
-                             qint64 since) {
+                             qint64 since, bool ok) {
     // Several (proto, port) pairs share a name: DNS over TCP and UDP, the
     // mail ports. One row per name, the pairs listed in its tooltip.
     struct Acc {
@@ -276,6 +276,8 @@ void UsageTab::setTypeTotals(const QVector<TypeTotal>& totals, bool collected,
     QString text;
     if (!collected) {
         text = tr("Update bandsightd to see traffic types.");
+    } else if (!ok) {
+        text = tr("Traffic types could not be read.");
     } else if (since > 0) {
         // The period starts before the first type row: older history has apps
         // and hosts but no types, so the list covers only part of it.
@@ -287,7 +289,7 @@ void UsageTab::setTypeTotals(const QVector<TypeTotal>& totals, bool collected,
     }
     traffic_note_->setText(text);
     traffic_note_->setVisible(!text.isEmpty());
-    traffic_list_->setVisible(collected && !rows.isEmpty());
+    traffic_list_->setVisible(collected && ok && !rows.isEmpty());
 }
 
 // "Clearly short": under 90% of what the apps moved, and at least 1 MB of it, so
