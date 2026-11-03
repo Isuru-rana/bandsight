@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The Usage tab's Unattributed rows and row tooltips, on the real widgets.
+// The Usage tab's Unattributed rows, row tooltips and Traffic type card, on
+// the real widgets.
 // Runs on Qt's offscreen platform (set by ctest).
 #include <QApplication>
+#include <QLabel>
+#include <QMouseEvent>
 
 #include "check.h"
 #include "tabs/usage_tab.h"
+#include "widgets/card.h"
 #include "widgets/ranked_list.h"
 
 using namespace bandsight::gui;
@@ -27,6 +31,15 @@ RankedList* apps_list(UsageTab& tab) {
         for (const auto& r : l->rows())
             if (r.key.startsWith(QLatin1Char('/'))) return l;
     return nullptr;
+}
+
+TypeTotal type(int proto, int port, quint64 rx, quint64 tx) {
+    TypeTotal t;
+    t.proto = proto;
+    t.port = port;
+    t.rx = rx;
+    t.tx = tx;
+    return t;
 }
 
 quint64 footer_value(RankedList* l) {
@@ -97,6 +110,54 @@ int main(int argc, char** argv) {
     } else {
         CHECK(false);
     }
+
+    // Traffic type: one row per service name, largest first, never clickable.
+    RankedList* types = tab.traffic();
+    CHECK(types != nullptr);
+    tab.setTypeTotals({type(6, 443, 900, 100), type(17, 443, 400, 50), type(17, 53, 10, 5),
+                       type(6, 53, 3, 2), type(17, 0, 70, 30)},
+                      true, 0);
+    qapp.processEvents();
+    if (types) {
+        const auto& rows = types->rows();
+        CHECK(rows.size() == 4);
+        if (rows.size() == 4) {
+            CHECK(rows[0].label == QLatin1String("HTTPS") && rows[0].value == 1000);
+            CHECK(rows[1].label == QLatin1String("QUIC") && rows[1].down == 400 &&
+                  rows[1].up == 50);
+            CHECK(rows[2].label == QLatin1String("Other") && rows[2].value == 100);
+            CHECK(rows[3].label == QLatin1String("DNS") && rows[3].value == 20);   // tcp + udp
+            CHECK(rows[3].tooltip.contains(QLatin1String("53/udp")) &&
+                  rows[3].tooltip.contains(QLatin1String("53/tcp")));
+        }
+        for (const auto& r : rows) CHECK(r.key.isEmpty());
+        CHECK(types->isVisible());
+        int clicks = 0;
+        QObject::connect(types, &RankedList::rowClicked, [&] { ++clicks; });
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(5, 5), types->mapToGlobal(QPointF(5, 5)),
+                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(types, &press);
+        CHECK(clicks == 0);
+        CHECK(types->rowAt(QPoint(5, 5)) == 0);   // the click did land on a row
+    }
+    CHECK(tab.trafficNote() && tab.trafficNote()->isHidden());
+    CHECK(tab.trafficCard() && !tab.trafficCard()->isReserved());
+
+    // A period that starts before type recording: the list plus a note.
+    tab.setTypeTotals({type(6, 443, 1, 1)}, true, 1'700'000'000);
+    CHECK(tab.trafficNote()->isVisible());
+    CHECK(tab.trafficNote()->text().startsWith(QLatin1String("Traffic types recorded since")));
+    CHECK(types && types->isVisible());
+
+    // An old daemon: no list, a note saying what to do.
+    tab.setTypeTotals({}, false, 0);
+    CHECK(tab.trafficNote()->isVisible());
+    CHECK(tab.trafficNote()->text().contains(QLatin1String("Update bandsightd")));
+    CHECK(types && !types->isVisible());
+
+    // An empty period.
+    tab.setTypeTotals({}, true, 0);
+    CHECK(tab.trafficNote()->text() == QLatin1String("No traffic in this period"));
 
     if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);
     else std::printf("test_usage_tab: all checks passed\n");
