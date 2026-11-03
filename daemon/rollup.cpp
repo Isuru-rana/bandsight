@@ -34,7 +34,8 @@ std::int64_t earliest_src_ts(sqlite3* db, int src_res) {
         "SELECT MIN(t) FROM ("
         "  SELECT MIN(ts) AS t FROM iface_samples WHERE res=?1"
         "  UNION ALL SELECT MIN(ts) AS t FROM app_samples WHERE res=?1"
-        "  UNION ALL SELECT MIN(ts) AS t FROM app_host_samples WHERE res=?1)",
+        "  UNION ALL SELECT MIN(ts) AS t FROM app_host_samples WHERE res=?1"
+        "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=?1)",
         -1, &st, nullptr);
     sqlite3_bind_int(st, 1, src_res);
     std::int64_t v = 0;
@@ -79,6 +80,15 @@ void roll_one_bucket(sqlite3* db, int src_res, int dst_res, std::int64_t bucket,
              "FROM app_host_samples "
              "WHERE res=" + s + " AND ts>=" + lo + " AND ts<" + hi +
              " GROUP BY app_id,iface_id,host_id");
+
+        // Type rows: the same tiers and the same res=60 exclusion as hosts.
+        exec(db, "DELETE FROM type_samples WHERE res=" + d + " AND ts=" + b);
+        exec(db,
+             "INSERT INTO type_samples(res,ts,iface_id,proto,port,rx,tx) "
+             "SELECT " + d + "," + b + ",iface_id,proto,port,SUM(rx),SUM(tx) "
+             "FROM type_samples "
+             "WHERE res=" + s + " AND ts>=" + lo + " AND ts<" + hi +
+             " GROUP BY iface_id,proto,port");
     }
 }
 
@@ -131,12 +141,15 @@ void enforce_retention(sqlite3* db, std::int64_t now) {
             exec(db, "DELETE FROM iface_samples WHERE res=" + res + " AND ts<" + cutoff);
             exec(db, "DELETE FROM app_samples WHERE res=" + res + " AND ts<" + cutoff);
         }
-        // Host rows: res=60 two days (the 24 h window plus a margin), res=3600
-        // ninety days, res=86400 forever.
-        exec(db, "DELETE FROM app_host_samples WHERE res=" + std::to_string(kRes1m) +
-                     " AND ts<" + std::to_string(now - 2LL * 86400));
-        exec(db, "DELETE FROM app_host_samples WHERE res=" + std::to_string(kRes1h) +
-                     " AND ts<" + std::to_string(now - 90LL * 86400));
+        // Host and type rows: res=60 two days (the 24 h window plus a margin),
+        // res=3600 ninety days, res=86400 forever.
+        for (const char* table : {"app_host_samples", "type_samples"}) {
+            const std::string t = table;
+            exec(db, "DELETE FROM " + t + " WHERE res=" + std::to_string(kRes1m) +
+                         " AND ts<" + std::to_string(now - 2LL * 86400));
+            exec(db, "DELETE FROM " + t + " WHERE res=" + std::to_string(kRes1h) +
+                         " AND ts<" + std::to_string(now - 90LL * 86400));
+        }
     } catch (...) {
         exec(db, "ROLLBACK");
         throw;
