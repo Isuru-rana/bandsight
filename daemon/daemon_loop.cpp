@@ -126,7 +126,8 @@ void DaemonLoop::log_tick_error(const std::string& what) {
 // buckets the rollup may already have closed.
 void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
                                   const std::vector<AppDelta>& apps,
-                                  const std::vector<HostDelta>& hosts) {
+                                  const std::vector<HostDelta>& hosts,
+                                  const std::vector<TypeDelta>& types) {
     // Roughly a minute of a busy machine. Past this the database is not coming
     // back on its own, and holding more only moves the failure from "some data
     // lost" to "the collector was OOM-killed".
@@ -156,6 +157,21 @@ void DaemonLoop::retain_unwritten(const std::vector<IfaceDelta>& ifaces,
         }
         if (pending_hosts_.size() >= kMaxPending) { ++pending_dropped_; continue; }
         pending_hosts_.push_back(d);
+    }
+    // Merged the same way: a tick's type deltas are already one per key.
+    for (const auto& d : types) {
+        auto same = std::find_if(pending_types_.begin(), pending_types_.end(),
+                                 [&](const TypeDelta& t) {
+                                     return t.ifindex == d.ifindex && t.proto == d.proto &&
+                                            t.port == d.port;
+                                 });
+        if (same != pending_types_.end()) {
+            same->rx += d.rx;
+            same->tx += d.tx;
+            continue;
+        }
+        if (pending_types_.size() >= kMaxPending) { ++pending_dropped_; continue; }
+        pending_types_.push_back(d);
     }
     // Only when something new was discarded, and at most once a minute: this
     // runs on every failed tick, and printing the running total each time put
@@ -309,10 +325,14 @@ void DaemonLoop::tick(std::int64_t now) {
 
         // Per-socket deltas for the Hosts column, resolved through the same app
         // and interface paths as above.
+        // The same entries, by service, for the Traffic type column.
+        const auto socks = collector_.drain_sock();
         std::vector<HostDelta> host_deltas = aggregate_hosts(
-            collector_.drain_sock(),
+            socks,
             [this](const SockVal& v) { return app_id_for(v.tgid, v.cgroup_id); },
             [this](std::uint32_t ifx) { return clamp_ifindex(ifx); });
+        std::vector<TypeDelta> type_deltas = aggregate_types(
+            socks, ephemeral_, [this](std::uint32_t ifx) { return clamp_ifindex(ifx); });
 
         // Drop identities for tgids that exited before this drain - now that the
         // drain above has had a chance to attribute their last bytes.
@@ -332,13 +352,16 @@ void DaemonLoop::tick(std::int64_t now) {
         // Anything a previous tick drained but could not write goes in with this
         // tick's data (I6). Merged before the write, so one failure does not
         // fork the retry path from the normal one.
-        if (!pending_ifaces_.empty() || !pending_apps_.empty() || !pending_hosts_.empty()) {
+        if (!pending_ifaces_.empty() || !pending_apps_.empty() || !pending_hosts_.empty() ||
+            !pending_types_.empty()) {
             deltas.insert(deltas.end(), pending_ifaces_.begin(), pending_ifaces_.end());
             app_deltas.insert(app_deltas.end(), pending_apps_.begin(), pending_apps_.end());
             host_deltas.insert(host_deltas.end(), pending_hosts_.begin(), pending_hosts_.end());
+            type_deltas.insert(type_deltas.end(), pending_types_.begin(), pending_types_.end());
             pending_ifaces_.clear();
             pending_apps_.clear();
             pending_hosts_.clear();
+            pending_types_.clear();
         }
 
         // Written once per tick so a tick is one transaction.
@@ -355,13 +378,14 @@ void DaemonLoop::tick(std::int64_t now) {
         // earlier version of this comment argued exactly that - the two changes
         // have to be read together.
         bool stored = true;
-        if (!deltas.empty() || !app_deltas.empty() || !host_deltas.empty()) {
+        if (!deltas.empty() || !app_deltas.empty() || !host_deltas.empty() ||
+            !type_deltas.empty()) {
             try {
-                store_.write_samples(now, deltas, app_deltas, host_deltas);
+                store_.write_samples(now, deltas, app_deltas, host_deltas, type_deltas);
             } catch (const std::exception& e) {
                 // drain_app() already deleted these from the kernel map, so
                 // dropping them here would destroy them outright.
-                retain_unwritten(deltas, app_deltas, host_deltas);
+                retain_unwritten(deltas, app_deltas, host_deltas, type_deltas);
                 stored = false;
                 log_tick_error(e.what());
             }

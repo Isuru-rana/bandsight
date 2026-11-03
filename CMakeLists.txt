@@ -29,6 +29,7 @@ add_library(bandsight_core STATIC
     daemon/resolved_monitor.cpp
     daemon/unix_socket_control.cpp
     daemon/host_accounting.cpp
+    daemon/traffic_type.cpp
 )
 target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon)
 target_link_libraries(bandsight_core PUBLIC PkgConfig::SQLITE3 PkgConfig::LIBBPF)
