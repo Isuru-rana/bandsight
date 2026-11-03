@@ -397,6 +397,10 @@ void MainWindow::refreshFromHistory() {
     const bool ranged = sel_to_ > sel_from_;
     const int res = window_spec(w).res;
     const qint64 from = sel_from_, to = sel_to_;
+    // The headline and the rows come back as separate replies; until all three
+    // below have arrived, the Usage tab must not compare one period's headline
+    // with another's rows.
+    usage_->beginRefresh();
     QMetaObject::invokeMethod(history_, [h = history_, w, now, ranged, res, from, to] {
         if (ranged) {
             // Same signals, same tier: a selection narrows what is counted, not
