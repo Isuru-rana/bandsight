@@ -3,16 +3,12 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
-## [Unreleased]
+## [0.4.0] - 2026-11-03
 
 ### Added
 - Traffic type card on the Usage tab: bytes by service (HTTPS, QUIC, DNS, SSH, …)
 - Local port recorded per socket
 - Database table `type_samples`
-
-### Changed
-
-### Fixed
 
 ### Removed
 - "Needs port and protocol collection" placeholder
