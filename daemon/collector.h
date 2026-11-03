@@ -34,7 +34,8 @@ struct SockVal {
     std::uint8_t proto = 0;
     std::uint16_t rport = 0;   // host byte order
     std::uint8_t raddr[16] = {};   // IPv4 stored v4-mapped
-    std::uint32_t pad = 0;
+    std::uint16_t lport = 0;   // host byte order
+    std::uint16_t pad = 0;
     std::uint64_t rx = 0;
     std::uint64_t tx = 0;
 };

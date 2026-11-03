@@ -52,6 +52,13 @@ struct AppHostTotal {
     quint64 rx = 0; quint64 tx = 0;
 };
 
+// Bytes of one service over the period: proto 6 (TCP) or 17 (UDP) and the
+// service port the daemon chose, 0 for "other" (see daemon/traffic_type.h).
+struct TypeTotal {
+    int proto = 0; int port = 0;
+    quint64 rx = 0; quint64 tx = 0;
+};
+
 // Exclusion key for a host. Never empty: RankedList refuses empty keys, and the
 // no-peer row (ip "") must be excludable like any other.
 inline QString host_key(const QString& ip) {
@@ -136,3 +143,5 @@ Q_DECLARE_METATYPE(bandsight::gui::AppTotal)
 Q_DECLARE_METATYPE(QVector<bandsight::gui::AppTotal>)
 Q_DECLARE_METATYPE(bandsight::gui::AppHostTotal)
 Q_DECLARE_METATYPE(QVector<bandsight::gui::AppHostTotal>)
+Q_DECLARE_METATYPE(bandsight::gui::TypeTotal)
+Q_DECLARE_METATYPE(QVector<bandsight::gui::TypeTotal>)

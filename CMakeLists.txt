@@ -29,6 +29,7 @@ add_library(bandsight_core STATIC
     daemon/resolved_monitor.cpp
     daemon/unix_socket_control.cpp
     daemon/host_accounting.cpp
+    daemon/traffic_type.cpp
 )
 target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon)
 target_link_libraries(bandsight_core PUBLIC PkgConfig::SQLITE3 PkgConfig::LIBBPF)
@@ -112,6 +113,7 @@ if(BANDSIGHT_BUILD_GUI)
       gui/smooth.cpp
       gui/quota.cpp
       gui/unattributed.cpp
+      gui/service_names.cpp
       gui/quota_bar.cpp
       gui/settings_dialog.cpp
       gui/failure.cpp
@@ -182,6 +184,10 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_attribution PRIVATE bandsight_core)
   add_test(NAME attribution COMMAND test_attribution)
 
+  add_executable(test_traffic_type tests/test_traffic_type.cpp)
+  target_link_libraries(test_traffic_type PRIVATE bandsight_core)
+  add_test(NAME traffic_type COMMAND test_traffic_type)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)
@@ -189,6 +195,11 @@ if(BANDSIGHT_BUILD_TESTS)
     target_include_directories(test_history_query PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_history_query PRIVATE bandsight_core Qt6::Core Qt6::Sql)
     add_test(NAME history_query COMMAND test_history_query)
+
+    add_executable(test_service_names tests/test_service_names.cpp gui/service_names.cpp)
+    target_include_directories(test_service_names PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+    target_link_libraries(test_service_names PRIVATE bandsight_core Qt6::Core)
+    add_test(NAME service_names COMMAND test_service_names)
 
     # The GUI's own sources minus main(), so the test drives the real widgets.
     get_target_property(_gui_sources bandsight SOURCES)

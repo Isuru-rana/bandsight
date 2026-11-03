@@ -21,6 +21,20 @@ namespace {
 //
 // v3: app_host_samples gained iface_id, so host bytes obey the same accounting
 // rule (only physical and wifi interfaces count) as every other total.
+//
+// Not a version bump: type_samples (bytes per interface, protocol and service
+// port, for the Traffic type column) is a new table and nothing else changes,
+// so it is created by kSchema's IF NOT EXISTS on any v3 database. A daemon
+// that predates it ignores the table, and rolling back a package keeps
+// working; a version bump would have made every older daemon refuse the file
+// (the check at the end of migrate()).
+//
+// Future idea, not implemented: store a separate "min_reader_version" next to
+// schema_version. A change that older readers can safely ignore (a new table,
+// a new nullable column) raises schema_version only; one they would misread
+// raises min_reader_version too, and a daemon refuses a database only when
+// min_reader_version is above what it understands. Additive changes would then
+// never block a downgrade.
 constexpr int kSchemaVersion = 3;
 
 const char* kSchema = R"SQL(
@@ -68,6 +82,16 @@ CREATE TABLE IF NOT EXISTS app_host_samples(
   rx INTEGER NOT NULL,
   tx INTEGER NOT NULL,
   PRIMARY KEY(res, ts, app_id, iface_id, host_id)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS type_samples(
+  res INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  iface_id INTEGER NOT NULL REFERENCES ifaces(id),
+  proto INTEGER NOT NULL,
+  port INTEGER NOT NULL,
+  rx INTEGER NOT NULL,
+  tx INTEGER NOT NULL,
+  PRIMARY KEY(res, ts, iface_id, proto, port)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS rollup_state(res INTEGER PRIMARY KEY, last_ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -295,7 +319,8 @@ void Store::upsert_iface(int ifindex, const std::string& name, const std::string
 
 void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces,
                           const std::vector<AppDelta>& apps,
-                          const std::vector<HostDelta>& hosts) {
+                          const std::vector<HostDelta>& hosts,
+                          const std::vector<TypeDelta>& types) {
     exec("BEGIN");
     try {
         sqlite3_stmt* si = nullptr;
@@ -389,6 +414,39 @@ void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces
             sqlite3_finalize(sh);
             sqlite3_finalize(ss);
         }
+
+        if (!types.empty()) {
+            sqlite3_stmt* st = nullptr;
+            if (sqlite3_prepare_v2(db_,
+                    "INSERT INTO type_samples(res,ts,iface_id,proto,port,rx,tx) "
+                    "VALUES(60,?,?,?,?,?,?) "
+                    "ON CONFLICT(res,ts,iface_id,proto,port) "
+                    "DO UPDATE SET rx=rx+excluded.rx, tx=tx+excluded.tx",
+                    -1, &st, nullptr) != SQLITE_OK) {
+                throw std::runtime_error("type_samples prepare");
+            }
+            const std::int64_t minute = bucket_start(ts, kRes1m);
+            for (const auto& t : types) {
+                sqlite3_reset(st);
+                sqlite3_bind_int64(st, 1, minute);
+                sqlite3_bind_int(st, 2, t.ifindex);
+                sqlite3_bind_int(st, 3, t.proto);
+                sqlite3_bind_int(st, 4, t.port);
+                sqlite3_bind_int64(st, 5, static_cast<sqlite3_int64>(t.rx));
+                sqlite3_bind_int64(st, 6, static_cast<sqlite3_int64>(t.tx));
+                if (sqlite3_step(st) != SQLITE_DONE) {
+                    sqlite3_finalize(st);
+                    throw std::runtime_error("type_samples insert");
+                }
+            }
+            sqlite3_finalize(st);
+            // The exact second recording began. The GUI cannot derive it from
+            // the rows: hourly and daily rows are stamped with the start of
+            // their bucket, up to a day before the first byte.
+            if (!types_since_set_)
+                exec("INSERT OR IGNORE INTO config(key, value) VALUES('types_since', '" +
+                     std::to_string(ts) + "')");
+        }
     } catch (...) {
         // SQLite auto-rolls-back on SQLITE_FULL, so this ROLLBACK then fails
         // with "no transaction is active" - and THAT became the reported error,
@@ -404,6 +462,7 @@ void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces
         throw;
     }
     exec("COMMIT");
+    if (!types.empty()) types_since_set_ = true;
 }
 
 }  // namespace bandsight

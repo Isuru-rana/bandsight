@@ -1,0 +1,304 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Traffic types in the daemon: the service-port rule, per-tick aggregation,
+// type_samples added to a v3 database without a version bump, and
+// type_samples in rollup and retention.
+#include <sqlite3.h>
+
+#include <cstdio>
+#include <string>
+
+#include "check.h"
+#include "rollup.h"
+#include "store.h"
+#include "time_buckets.h"
+#include "traffic_type.h"
+
+using namespace bandsight;
+
+namespace {
+
+constexpr std::uint8_t kTcp = 6, kUdp = 17;
+
+std::int64_t scalar(sqlite3* db, const std::string& sql) {
+    sqlite3_stmt* st = nullptr;
+    std::int64_t v = -1;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &st, nullptr) == SQLITE_OK &&
+        sqlite3_step(st) == SQLITE_ROW)
+        v = sqlite3_column_int64(st, 0);
+    sqlite3_finalize(st);
+    return v;
+}
+
+void service_port_rule() {
+    const EphemeralRange eph;   // kernel default 32768-60999
+
+    // Exactly one side well known: that side, whoever connected.
+    CHECK(service_port(kTcp, 51000, 443, eph) == 443);     // client to HTTPS
+    CHECK(service_port(kTcp, 443, 51000, eph) == 443);     // HTTPS server
+    CHECK(service_port(kTcp, 22, 40000, eph) == 22);       // SSH server
+    CHECK(service_port(kUdp, 41000, 3478, eph) == 3478);   // STUN, registered port
+    CHECK(service_port(kUdp, 41641, 0, eph) == 41641);     // Tailscale, unconnected
+    CHECK(service_port(kUdp, 51820, 0, eph) == 51820);     // WireGuard listener
+    CHECK(service_port(kUdp, 5353, 0, eph) == 5353);       // mDNS
+    CHECK(service_port(kUdp, 50000, 19305, eph) == 19305); // Google STUN
+
+    // Client to a known service.
+    CHECK(service_port(kTcp, 45000, 443, eph) == 443);
+
+    // Neither known: a local listening port is kept, a remote one never is.
+    CHECK(service_port(kTcp, 8080, 45000, eph) == 8080);   // local dev server
+    CHECK(service_port(kTcp, 5432, 33000, eph) == 5432);   // local postgres
+    CHECK(service_port(kTcp, 3000, 61000, eph) == 3000);   // remote outside the range
+    CHECK(service_port(kUdp, 45000, 37000, eph) == 0);     // client to a peer's port
+    CHECK(service_port(kTcp, 45000, 8080, eph) == 0);      // client to a remote 8080
+    CHECK(service_port(kTcp, 50000, 20000, eph) == 0);
+    CHECK(service_port(kTcp, 33000, 55555, eph) == 0);
+    // P2P: many peers on random ports collapse into one row.
+    for (std::uint16_t peer = 1024; peer < 49152; peer += 977)
+        CHECK(service_port(kUdp, 40000, peer, eph) == 0);
+
+    // Dynamic range on both sides, or as the only candidate: other.
+    CHECK(service_port(kUdp, 50000, 60000, eph) == 0);
+    CHECK(service_port(kTcp, 61000, 62000, eph) == 0);
+    CHECK(service_port(kTcp, 62000, 20000, eph) == 0);     // local above the range
+    // Unconnected UDP from an ephemeral port: no remote port, other.
+    CHECK(service_port(kUdp, 45000, 0, eph) == 0);
+    // An unconnected listener outside the range keeps its port.
+    CHECK(service_port(kUdp, 20000, 0, eph) == 20000);
+
+    // Both known: the lower port.
+    CHECK(service_port(kUdp, 41641, 3478, eph) == 3478);   // Tailscale doing STUN
+    CHECK(service_port(kTcp, 1883, 3478, eph) == 1883);
+    CHECK(service_port(kUdp, 123, 123, eph) == 123);       // NTP between servers
+    // A reserved client source port never names the service, on either side.
+    CHECK(service_port(kTcp, 600, 111, eph) == 111);       // rpcbind client
+    CHECK(service_port(kTcp, 111, 734, eph) == 111);       // the rpcbind server
+    CHECK(service_port(kTcp, 1010, 22, eph) == 22);        // ssh from a reserved port
+    for (std::uint16_t src = 512; src < 1024; ++src)
+        CHECK(service_port(kTcp, src, 443, eph) == 443);
+
+    // A protocol-specific port does not count for the other protocol.
+    CHECK(is_known_service_port(kUdp, 51820));
+    CHECK(!is_known_service_port(kTcp, 51820));
+    CHECK(!is_known_service_port(kTcp, 0));
+    CHECK(is_known_service_port(kTcp, 1023));
+    CHECK(!is_known_service_port(kTcp, 1024));
+
+    // A narrowed ephemeral range changes who is the listener.
+    EphemeralRange narrow;
+    narrow.lo = 50000;
+    narrow.hi = 50100;
+    CHECK(service_port(kTcp, 45000, 8080, narrow) == 45000);
+    CHECK(service_port(kTcp, 50050, 8080, narrow) == 0);
+}
+
+void ephemeral_range_file() {
+    const char* path = "test_ephemeral_range.txt";
+    if (FILE* f = std::fopen(path, "w")) {
+        std::fputs("10000\t20000\n", f);
+        std::fclose(f);
+    }
+    const EphemeralRange r = read_ephemeral_range(path);
+    CHECK(r.lo == 10000 && r.hi == 20000);
+    std::remove(path);
+
+    const EphemeralRange d = read_ephemeral_range("/nonexistent/ip_local_port_range");
+    CHECK(d.lo == 32768 && d.hi == 60999);
+}
+
+void aggregation() {
+    const EphemeralRange eph;
+    std::vector<std::pair<SockKey, SockVal>> socks;
+    auto add = [&](std::uint8_t proto, std::uint16_t lport, std::uint16_t rport,
+                   std::uint32_t ifx, std::uint64_t rx, std::uint64_t tx) {
+        SockVal v;
+        v.proto = proto;
+        v.lport = lport;
+        v.rport = rport;
+        v.ifindex = ifx;
+        v.rx = rx;
+        v.tx = tx;
+        socks.push_back({SockKey{socks.size() + 1}, v});
+    };
+    add(kTcp, 50001, 443, 2, 100, 10);
+    add(kTcp, 50002, 443, 2, 200, 20);   // same service, same interface: merged
+    add(kUdp, 50003, 443, 2, 1000, 5);   // QUIC: a different row from HTTPS
+    add(kTcp, 50004, 443, 9, 1, 1);      // unknown interface -> clamped to 0
+    add(kUdp, 50005, 60000, 2, 7, 7);    // other
+    add(kTcp, 50006, 443, 2, 0, 0);      // nothing moved: no row
+    // Containers: their own port range, so only well-known ports are kept.
+    add(kTcp, 20001, 9000, 77, 3, 3);    // client port 20001 in the container's range
+    add(kTcp, 20002, 9000, 77, 4, 4);
+    add(kTcp, 45000, 443, 77, 5, 5);     // HTTPS from a container
+
+    const auto out = aggregate_types(socks, eph, [](std::uint32_t i) {
+        return i == 2 ? 2 : i == 77 ? kIfaceOtherNetns : 0;
+    });
+    CHECK(out.size() == 6);
+    bool ns_other = false, ns_https = false;
+    for (const auto& d : out) {
+        if (d.ifindex != kIfaceOtherNetns) continue;
+        if (d.port == 0) ns_other = d.rx == 7 && d.tx == 7;
+        else if (d.port == 443) ns_https = d.rx == 5;
+        else CHECK(false);   // a raw container client port was stored
+    }
+    CHECK(ns_other && ns_https);
+    bool https = false, quic = false, unknown_if = false, other = false;
+    for (const auto& d : out) {
+        if (d.ifindex == 2 && d.proto == kTcp && d.port == 443)
+            https = d.rx == 300 && d.tx == 30;
+        if (d.ifindex == 2 && d.proto == kUdp && d.port == 443)
+            quic = d.rx == 1000 && d.tx == 5;
+        if (d.ifindex == 0 && d.proto == kTcp && d.port == 443)
+            unknown_if = d.rx == 1 && d.tx == 1;
+        if (d.ifindex == 2 && d.proto == kUdp && d.port == 0)
+            other = d.rx == 7 && d.tx == 7;
+    }
+    CHECK(https && quic && unknown_if && other);
+}
+
+// A database written by 0.3.1: schema_version 3, no type_samples. This build
+// adds the table and leaves the version at 3, so the 0.3.1 daemon - whose
+// only check is schema_version == 3, and which never reads type_samples -
+// keeps working on the file after a package rollback.
+void v3_database_gains_type_samples() {
+    const char* path = "test_v3_type_samples.db";
+    std::remove(path);
+    std::int64_t app = 0;
+    {
+        Store s(path);
+        s.migrate();
+        s.upsert_iface(2, "eth0", "physical");
+        app = s.upsert_app("/usr/bin/curl", "curl", "");
+        s.write_samples(1'700'000'000, {{2, 10, 20}}, {{app, 2, 10, 20}},
+                        {{app, 2, "1.1.1.1", 10, 20}});
+        sqlite3_exec(s.handle(), "DROP TABLE type_samples", nullptr, nullptr, nullptr);
+        CHECK(s.schema_version() == 3);
+        CHECK(scalar(s.handle(),
+                     "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'") == 0);
+    }
+    {
+        Store s(path);   // this build opens the 0.3.1 database
+        bool ok = true;
+        try { s.migrate(); } catch (...) { ok = false; }
+        CHECK(ok);
+        CHECK(scalar(s.handle(),
+                     "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'") == 1);
+        CHECK(s.schema_version() == 3);   // what a 0.3.1 daemon requires
+        // Existing history is untouched.
+        CHECK(scalar(s.handle(), "SELECT SUM(rx) FROM app_samples") == 10);
+        CHECK(scalar(s.handle(), "SELECT SUM(tx) FROM app_host_samples") == 20);
+        // And the new table takes writes.
+        bool wrote = true;
+        try {
+            s.write_samples(1'700'000'001, {}, {}, {}, {{2, kTcp, 443, 5, 6}});
+        } catch (...) {
+            wrote = false;
+        }
+        CHECK(wrote);
+        // Idempotent on the next start, still version 3.
+        try { s.migrate(); } catch (...) { ok = false; }
+        CHECK(ok && s.schema_version() == 3);
+    }
+    std::remove(path);
+    std::remove((std::string(path) + "-wal").c_str());
+    std::remove((std::string(path) + "-shm").c_str());
+}
+
+std::string config(sqlite3* db, const char* key) {
+    sqlite3_stmt* st = nullptr;
+    std::string v;
+    if (sqlite3_prepare_v2(db, "SELECT value FROM config WHERE key=?", -1, &st, nullptr) ==
+        SQLITE_OK) {
+        sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+        if (sqlite3_step(st) == SQLITE_ROW)
+            v = reinterpret_cast<const char*>(sqlite3_column_text(st, 0));
+    }
+    sqlite3_finalize(st);
+    return v;
+}
+
+// The first type write records the exact second, and nothing moves it later:
+// not another write, not a restart.
+void types_since_recorded() {
+    const char* path = "test_types_since.db";
+    std::remove(path);
+    {
+        Store s(path);
+        s.migrate();
+        s.upsert_iface(2, "eth0", "physical");
+        s.write_samples(1'700'000'017, {{2, 1, 1}}, {}, {}, {});
+        CHECK(config(s.handle(), "types_since").empty());   // no type bytes yet
+        s.write_samples(1'700'000'023, {}, {}, {}, {{2, kTcp, 443, 5, 6}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+        s.write_samples(1'700'000'099, {}, {}, {}, {{2, kTcp, 443, 5, 6}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+    }
+    {
+        Store s(path);
+        s.migrate();
+        s.write_samples(1'700'009'000, {}, {}, {}, {{2, kUdp, 443, 1, 1}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+    }
+    std::remove(path);
+    std::remove((std::string(path) + "-wal").c_str());
+    std::remove((std::string(path) + "-shm").c_str());
+}
+
+// A fresh database gets the table and version 3 as well.
+void fresh_database_is_v3() {
+    Store s(":memory:");
+    s.migrate();
+    CHECK(s.schema_version() == 3);
+    CHECK(scalar(s.handle(), "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'")
+          == 1);
+}
+
+void rollup_and_retention() {
+    Store s(":memory:");
+    s.migrate();
+    s.upsert_iface(2, "eth0", "physical");
+    const std::int64_t t0 = bucket_start(1'700'000'000, kRes1h);
+    // Two minutes of the same hour, and a repeat write in the same minute.
+    s.write_samples(t0 + 5, {}, {}, {}, {{2, kTcp, 443, 100, 10}});
+    s.write_samples(t0 + 6, {}, {}, {}, {{2, kTcp, 443, 1, 1}});
+    s.write_samples(t0 + 125, {}, {}, {}, {{2, kTcp, 443, 50, 5}, {2, kUdp, 0, 9, 9}});
+    sqlite3* db = s.handle();
+    CHECK(scalar(db, "SELECT COUNT(*) FROM type_samples WHERE res=60") == 3);
+    CHECK(scalar(db, "SELECT rx FROM type_samples WHERE res=60 AND ts=" +
+                         std::to_string(t0) + " AND port=443") == 101);
+
+    rollup_tier(db, kRes1m, kRes1h, t0 + 2 * 3600);
+    CHECK(scalar(db, "SELECT rx FROM type_samples WHERE res=3600 AND ts=" +
+                         std::to_string(t0) + " AND proto=6 AND port=443") == 151);
+    CHECK(scalar(db, "SELECT tx FROM type_samples WHERE res=3600 AND proto=17 AND port=0")
+          == 9);
+    // Re-running replaces rather than doubles.
+    rollup_tier(db, kRes1m, kRes1h, t0 + 2 * 3600);
+    CHECK(scalar(db, "SELECT SUM(rx) FROM type_samples WHERE res=3600") == 160);
+
+    // Minute rows go after two days, hourly after ninety, daily never.
+    sqlite3_exec(db, ("INSERT INTO type_samples VALUES(86400," + std::to_string(t0) +
+                      ",2,6,443,1,1)").c_str(), nullptr, nullptr, nullptr);
+    enforce_retention(db, t0 + 3 * 86400);
+    CHECK(scalar(db, "SELECT COUNT(*) FROM type_samples WHERE res=60") == 0);
+    CHECK(scalar(db, "SELECT COUNT(*) FROM type_samples WHERE res=3600") == 2);
+    enforce_retention(db, t0 + 91 * 86400);
+    CHECK(scalar(db, "SELECT COUNT(*) FROM type_samples WHERE res=3600") == 0);
+    CHECK(scalar(db, "SELECT COUNT(*) FROM type_samples WHERE res=86400") == 1);
+}
+
+}  // namespace
+
+int main() {
+    service_port_rule();
+    ephemeral_range_file();
+    aggregation();
+    v3_database_gains_type_samples();
+    fresh_database_is_v3();
+    types_since_recorded();
+    rollup_and_retention();
+    if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);
+    else std::printf("test_traffic_type: all checks passed\n");
+    return g_failures ? 1 : 0;
+}

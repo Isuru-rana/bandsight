@@ -18,12 +18,8 @@ class StatPair;
 class TimelineStrip;
 
 // Spec §7's Usage screen, in the dense four-column shape: a total split
-// download/upload, then Apps, then Hosts, then one column held for data the
-// daemon does not collect yet (Traffic type), over a timeline of the same period.
-//
-// The reserved column is not a placeholder in the throwaway sense. It holds its
-// real width and chrome so the layout the screen will have is the layout it has
-// now, and so the gap is visible rather than quietly designed around.
+// download/upload, then Apps, then Hosts, then Traffic type (bytes by service
+// port), over a timeline of the same period.
 class UsageTab : public QWidget {
     Q_OBJECT
 public:
@@ -38,6 +34,8 @@ public:
     Card* trafficCard() const { return traffic_; }
     RankedList* hosts() const { return hosts_list_; }
     QLabel* hostsNote() const { return hosts_note_; }   // objectName "hostsNote"
+    RankedList* traffic() const { return traffic_list_; }
+    QLabel* trafficNote() const { return traffic_note_; }   // objectName "trafficNote"
     QSet<QString> excludedHosts() const;
 
 public slots:
@@ -70,6 +68,14 @@ public slots:
     void setHostPairs(const QVector<AppHostTotal>& pairs, bool collected, qint64 since = 0);
     // Hosts the user has clicked out of the total, by host_key().
     void toggleHostExcluded(const QString& key);
+
+    // Bytes per (protocol, service port) for the period, one row per service
+    // name. Not clickable: there is no type exclusion. collected=false means
+    // the daemon predates type recording; since: when it began, if inside the
+    // period (0 otherwise). ok=false: the query failed, so the empty list is
+    // not "no traffic".
+    void setTypeTotals(const QVector<TypeTotal>& totals, bool collected, qint64 since = 0,
+                       bool ok = true);
     QSet<QString> excluded() const;
 
     // Test-only, same rationale as the rest here.
@@ -126,6 +132,8 @@ private:
     Card* traffic_;
     RankedList* hosts_list_;
     QLabel* hosts_note_;
+    RankedList* traffic_list_;
+    QLabel* traffic_note_;
     QLabel* period_;
     QLabel* excluding_;
     QComboBox* window_;

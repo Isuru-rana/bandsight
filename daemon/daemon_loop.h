@@ -17,6 +17,7 @@
 #include "netlink_stats.h"
 #include "resolver.h"
 #include "store.h"
+#include "traffic_type.h"
 
 namespace bandsight {
 
@@ -82,7 +83,8 @@ private:
     // with a count in the log, not by growing until the daemon is OOM-killed.
     void retain_unwritten(const std::vector<IfaceDelta>& ifaces,
                           const std::vector<AppDelta>& apps,
-                          const std::vector<HostDelta>& hosts = {});
+                          const std::vector<HostDelta>& hosts = {},
+                          const std::vector<TypeDelta>& types = {});
 
     // The app id for a process, memoised by executable - the one resolution both
     // the app drain and the socket drain use, so a socket is credited to exactly
@@ -94,6 +96,7 @@ private:
     std::vector<IfaceDelta> pending_ifaces_;
     std::vector<AppDelta> pending_apps_;
     std::vector<HostDelta> pending_hosts_;
+    std::vector<TypeDelta> pending_types_;
     std::int64_t pending_dropped_ = 0;
     // pending_dropped_ as of the last log line, and when that was: the discard
     // message follows log_tick_error's once-a-minute limit.
@@ -123,20 +126,24 @@ public:
     std::size_t pendingIfaceDeltasForTest() const { return pending_ifaces_.size(); }
     std::size_t pendingAppDeltasForTest() const { return pending_apps_.size(); }
     std::size_t pendingHostDeltasForTest() const { return pending_hosts_.size(); }
+    std::size_t pendingTypeDeltasForTest() const { return pending_types_.size(); }
     std::int64_t pendingDroppedForTest() const { return pending_dropped_; }
     int clampIfindexForTest(std::uint32_t i) const { return clamp_ifindex(i); }
     // Test-only: reaching the retry path through tick() needs real traffic
     // between two real netlink reads, which is not something a test can arrange.
     void retainForTest(const std::vector<IfaceDelta>& ifaces,
                        const std::vector<AppDelta>& apps,
-                       const std::vector<HostDelta>& hosts = {}) {
-        retain_unwritten(ifaces, apps, hosts);
+                       const std::vector<HostDelta>& hosts = {},
+                       const std::vector<TypeDelta>& types = {}) {
+        retain_unwritten(ifaces, apps, hosts, types);
     }
 
 private:
     Store& store_;
     std::string sysfs_root_;
     std::map<int, Prev> prev_;      // ifindex -> last cumulative reading; presence = baselined
+    // Read once at start: which local ports mean "this end connected".
+    EphemeralRange ephemeral_ = read_ephemeral_range();
 
     // Rollup/vacuum cadence is gated on CLOCK_MONOTONIC, not the tick's wall-clock
     // `now`, so an NTP step backwards cannot stall it (see I5). The wall clock is

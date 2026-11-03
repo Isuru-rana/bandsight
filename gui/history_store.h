@@ -40,6 +40,11 @@ public slots:
     void queryHostTotals(Window w, qint64 now);
     void queryHostTotalsRange(qint64 from, qint64 to, int res);
 
+    // Bytes per service for the Traffic type column. Minute-grained like the
+    // host rows, and widened and prorated the same way.
+    void queryTypeTotals(Window w, qint64 now);
+    void queryTypeTotalsRange(qint64 from, qint64 to, int res);
+
 signals:
     // Both carry the path they refer to. Without it a caller cannot tell a reply
     // to its current open from a reply to one it superseded, which is B5: two
@@ -56,6 +61,11 @@ signals:
     // began, if that is inside the period (0 otherwise) - app history is older
     // than host history, so the two cannot be compared before it.
     void hostPairs(QVector<AppHostTotal> pairs, bool collected, qint64 since);
+    // collected=false: no type_samples table (only a daemon older than the
+    // Traffic type column has touched the database). since: when type
+    // recording began, if that is inside the period (0 otherwise). ok=false:
+    // the query failed and totals is empty, which is not an idle period.
+    void typeTotals(QVector<TypeTotal> totals, bool collected, qint64 since, bool ok);
     void quota(QuotaInfo info);
 
 private:
@@ -67,6 +77,8 @@ private:
     // where the newest host row's data actually ends. Seconds-tier periods are
     // prorated from whole-minute rows to the period's length.
     void emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res);
+    // The type query, with the same arguments as emitHostPairs.
+    void emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int res);
 
     // The config table is read here, never written - the GUI's handle is
     // read-only and writes go through the daemon's set_config command.

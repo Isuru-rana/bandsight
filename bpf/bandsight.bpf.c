@@ -29,10 +29,11 @@ struct {
     __type(value, struct app_val);
 } map_app SEC(".maps");
 
-// Per-socket bytes with the peer, for the Hosts column. Keyed by socket cookie
-// (stable for the socket's life, never reused). Drained with lookup-and-delete
-// every second like map_app, so identity fields set at create time are
-// refreshed every second and no lifecycle hook is needed for bytes.
+// Per-socket bytes with the peer and ports, for the Hosts and Traffic type
+// columns. Keyed by socket cookie (stable for the socket's life, never
+// reused). Drained with lookup-and-delete every second like map_app, so
+// identity fields set at create time are refreshed every second and no
+// lifecycle hook is needed for bytes.
 struct sock_key {
     __u64 cookie;
 };
@@ -45,7 +46,8 @@ struct sock_val {
     __u8  proto;
     __u16 rport;      // host byte order
     __u8  raddr[16];  // IPv4 stored v4-mapped
-    __u32 pad;
+    __u16 lport;      // host byte order (skc_num); the daemon picks the service side
+    __u16 pad;
     __u64 rx;
     __u64 tx;
 };
@@ -162,6 +164,7 @@ static __always_inline void account_sock(struct sock *sk, __u64 bytes, int is_rx
         init.proto = proto;
         init.family = BPF_CORE_READ(sk, __sk_common.skc_family);
         init.rport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
+        init.lport = BPF_CORE_READ(sk, __sk_common.skc_num);
         if (init.family == 2 /* AF_INET */) {
             __u32 d4 = BPF_CORE_READ(sk, __sk_common.skc_daddr);
             init.raddr[10] = 0xff;
