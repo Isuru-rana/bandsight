@@ -12,6 +12,7 @@
 #include <exception>
 #include <vector>
 
+#include "../bpf/ifindex_pick.h"
 #include "app_name.h"
 #include "config_policy.h"
 #include "iface_class.h"
@@ -214,6 +215,12 @@ int DaemonLoop::clamp_ifindex(std::uint32_t ifindex) const {
     // program now reports 0 for any socket outside this daemon's netns
     // (host_netns_inum), which closes the collision; this clamp remains for
     // an ifindex the daemon has not observed yet.
+    //
+    // That report used to be 0, the same as "no route known", so container
+    // bytes and a host socket's unknown-interface bytes were one bucket. They
+    // are told apart now: unknown host traffic counts in the Apps breakdown,
+    // container traffic does not (see kIfaceOtherNetns).
+    if (ifindex == BS_IFINDEX_OTHER_NETNS) return kIfaceOtherNetns;
     return prev_.count(static_cast<int>(ifindex)) ? static_cast<int>(ifindex) : 0;
 }
 

@@ -13,6 +13,7 @@
 #include "app_labels.h"
 #include "host_class.h"
 #include "theme.h"
+#include "unattributed.h"
 #include "units.h"
 #include "widgets/card.h"
 #include "widgets/donut_chart.h"
@@ -162,6 +163,7 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
     pairs_ = pairs;
     hosts_collected_ = collected;
     hosts_since_ = since;
+    awaiting_hosts_ = qMax(0, awaiting_hosts_ - 1);
 
     // Pairs -> one row per host. The pairs are kept: they are what lets an app
     // and a host exclusion subtract shared bytes once (recomputeSplit).
@@ -214,6 +216,7 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
     if (pruned.size() != hosts_list_->excluded().size()) hosts_list_->setExcluded(pruned);
 
     updateHostsNote();
+    updateUnattributed();
     recomputeSplit();
 }
 
@@ -298,8 +301,16 @@ void UsageTab::recomputeSplit() {
     excluding_->setVisible(!text.isEmpty());
 }
 
-void UsageTab::setTotals(const QVector<AppTotal>& totals) {
+void UsageTab::beginRefresh() {
+    ++awaiting_split_;
+    ++awaiting_apps_;
+    ++awaiting_hosts_;
+}
+
+void UsageTab::setTotals(const QVector<AppTotal>& totals, bool complete) {
     totals_ = totals;
+    apps_complete_ = complete;
+    awaiting_apps_ = qMax(0, awaiting_apps_ - 1);
     // Labels are disambiguated only where they collide (U4): four different node
     // binaries otherwise render as four rows called "node", with the only thing
     // telling them apart hidden in a tooltip.
@@ -324,13 +335,66 @@ void UsageTab::setTotals(const QVector<AppTotal>& totals) {
     if (pruned.size() != apps_->excluded().size()) apps_->setExcluded(pruned);
 
     updateHostsNote();   // the incomplete note compares against these totals
+    updateUnattributed();
     recomputeSplit();
 }
 
 void UsageTab::setSplit(quint64 down, quint64 up) {
     split_down_ = down;
     split_up_ = up;
+    awaiting_split_ = qMax(0, awaiting_split_ - 1);
+    updateUnattributed();
     recomputeSplit();
+}
+
+// Against the UNFILTERED headline and rows: an exclusion subtracts from both
+// sides, so the remainder does not change when a row is clicked out.
+void UsageTab::updateUnattributed() {
+    const auto footer = [](const Unattributed& u, const QString& tip)
+        -> std::optional<RankedList::Row> {
+        if (!u.shown) return std::nullopt;
+        RankedList::Row r;
+        r.label = tr("Unattributed");
+        r.tooltip = tip;
+        r.value = u.total();
+        r.down = u.down;
+        r.up = u.up;
+        return r;   // no key: nothing to exclude
+    };
+    const QString why = tr(
+        "Counted on your network interfaces but not credited to any %1.\n"
+        "Usually: virtual machines, containers, kernel traffic such as WireGuard,\n"
+        "forwarded packets, or history recorded by an older bandsightd.\n"
+        "Included in the total; it cannot be excluded.");
+
+    // Each list's row is left as it is while its half of a refresh is still
+    // outstanding: a 30-day headline against the previous 5-minute app list
+    // would otherwise flash a remainder of nearly the whole month.
+    if (awaiting_split_ == 0 && awaiting_apps_ == 0) {
+        std::optional<RankedList::Row> app_footer;
+        // A failed query is not "nothing was attributed".
+        if (apps_complete_) {
+            quint64 down = 0, up = 0;
+            for (const AppTotal& t : totals_) { down += t.rx; up += t.tx; }
+            app_footer = footer(unattributed(split_down_, split_up_, down, up),
+                                why.arg(tr("application")));
+        }
+        apps_->setFooterRow(app_footer);
+    }
+
+    // Not when host recording began inside the period, or there is none: the
+    // shortfall is then expected, and the note under the list says why. An
+    // empty list also covers a failed host query, which emits no pairs.
+    if (awaiting_split_ == 0 && awaiting_hosts_ == 0) {
+        std::optional<RankedList::Row> host_footer;
+        if (hosts_collected_ && hosts_since_ <= 0 && !pairs_.isEmpty()) {
+            quint64 hd = 0, hu = 0;
+            for (const AppHostTotal& p : pairs_) { hd += p.rx; hu += p.tx; }
+            host_footer = footer(unattributed(split_down_, split_up_, hd, hu),
+                                 why.arg(tr("host")));
+        }
+        hosts_list_->setFooterRow(host_footer);
+    }
 }
 
 void UsageTab::setPeriod(const QString& label) {

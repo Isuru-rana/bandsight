@@ -67,6 +67,7 @@ public:
     bool degraded() const { return degraded_; }
 
     // Atomically removes and returns every entry accumulated since the last call.
+    // Also reads app_dropped and logs growth (rate-limited).
     std::vector<std::pair<AppKey, AppVal>> drain_app();
 
     // Same contract as drain_app(), for map_sock: every per-socket entry since
@@ -87,6 +88,10 @@ private:
 
     // sock_dropped: bytes lost to a full map_sock. Same rate limit as above.
     void check_sock_dropped();
+
+    // app_dropped: bytes lost to a full map_app - missing from the Apps
+    // breakdown, still in the interface totals. Same rate limit as above.
+    void check_app_dropped();
 
     struct Impl;
     Impl* impl_ = nullptr;

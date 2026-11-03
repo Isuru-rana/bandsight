@@ -49,7 +49,14 @@ public:
     // nullopt when everything fits.
     std::optional<Row> othersRow() const;
 
-    // The tooltip for a point: the row's own, or the hidden rows' list.
+    // A line drawn after everything else, never folded into othersRow() and
+    // never clickable: the "Unattributed" remainder, which belongs to no row
+    // and so cannot be excluded. Its key is ignored. nullopt removes it.
+    void setFooterRow(const std::optional<Row>& row);
+    const std::optional<Row>& footerRow() const { return footer_; }
+
+    // The tooltip for a point: the row's own, the hidden rows' list, or the
+    // footer's.
     QString tooltipAt(const QPoint& pos) const;
 
     // Rows the user has clicked out of the total. Excluded rows stay VISIBLE and
@@ -86,6 +93,7 @@ private:
     int chipSize() const;
 
     QVector<Row> rows_;
+    std::optional<Row> footer_;
     QSet<QString> excluded_;
     bool show_chips_ = true;
 };

@@ -5,6 +5,8 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_tracing.h>
 
+#include "ifindex_pick.h"
+
 char LICENSE[] SEC("license") = "GPL";
 
 struct app_key {
@@ -55,6 +57,16 @@ struct {
     __type(value, struct sock_val);
 } map_sock SEC(".maps");
 
+// Bytes that could not be recorded per-app because map_app was full. Unlike a
+// full map_sock, this loses them from the Apps breakdown entirely; they still
+// show in the interface totals.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u64);
+} app_dropped SEC(".maps");
+
 // Bytes that could not be recorded per-socket because map_sock was full. The
 // per-app totals are unaffected (map_app is updated first, independently); only
 // the host breakdown is short by this much.
@@ -69,24 +81,69 @@ struct {
 // userspace before load. 0 = unknown: then no socket is filtered.
 const volatile __u32 host_netns_inum = 0;
 
-// Egress interface for a socket, or 0 when the dst cache is cold or the socket
-// lives in another network namespace. ifindexes are per-namespace: a
-// container's eth0 is commonly ifindex 2, the same number as the host's first
-// NIC, and its container-to-container traffic was credited to that NIC.
-static __always_inline __u32 sk_ifindex(struct sock *sk)
+// The interface a socket's bytes are credited to; see bs_pick_ifindex() for the
+// order of the sources. hint is what the caller knows about this packet in
+// particular (UDP ingress interface, or loopback), 0 when nothing.
+//
+// ifindexes are per-namespace: a container's eth0 is commonly ifindex 2, the
+// same number as the host's first NIC, so a socket in another namespace is
+// reported as BS_IFINDEX_OTHER_NETNS (or loopback), never as a host interface.
+static __always_inline __u32 sk_ifindex(struct sock *sk, __u32 hint)
 {
+    int other_netns = 0;
     if (host_netns_inum) {
         __u32 inum = BPF_CORE_READ(sk, __sk_common.skc_net.net, ns.inum);
-        if (inum != host_netns_inum)
-            return 0;
+        other_netns = inum != host_netns_inum;
     }
+
+    __u32 dst_ifindex = 0;
     struct dst_entry *dst = (struct dst_entry *)BPF_CORE_READ(sk, sk_dst_cache);
-    if (!dst)
+    if (dst) {
+        struct net_device *dev = BPF_CORE_READ(dst, dev);
+        if (dev)
+            dst_ifindex = BPF_CORE_READ(dev, ifindex);
+    }
+
+    int bound = BPF_CORE_READ(sk, __sk_common.skc_bound_dev_if);
+
+    // sock.sk_rx_dst_ifindex exists from 5.16 (inet_sock.rx_dst_ifindex
+    // before). On an older kernel this source is simply not used.
+    int rx_dst = 0;
+    if (bpf_core_field_exists(sk->sk_rx_dst_ifindex))
+        rx_dst = BPF_CORE_READ(sk, sk_rx_dst_ifindex);
+
+    return bs_pick_ifindex(other_netns, hint, dst_ifindex, bound > 0 ? bound : 0,
+                           rx_dst > 0 ? rx_dst : 0);
+}
+
+// Loopback when an unconnected UDP datagram is addressed to 127/8 or ::1. Such a
+// socket has no cached route, and without this its loopback traffic (a local
+// DNS stub, a dev server) would be counted as traffic on an unknown interface.
+// msg_name is a kernel copy of the address for sendto/sendmsg/io_uring.
+static __always_inline __u32 udp_dest_hint(struct msghdr *msg)
+{
+    void *name = BPF_CORE_READ(msg, msg_name);
+    int namelen = BPF_CORE_READ(msg, msg_namelen);
+    if (!name)
         return 0;
-    struct net_device *dev = BPF_CORE_READ(dst, dev);
-    if (!dev)
+
+    __u16 family = 0;
+    if (bpf_probe_read_kernel(&family, sizeof(family), name))
         return 0;
-    return BPF_CORE_READ(dev, ifindex);
+
+    unsigned char addr[16] = {};
+    if (family == 2 /* AF_INET */ && namelen >= (int)sizeof(struct sockaddr_in)) {
+        struct sockaddr_in *sin = name;
+        if (bpf_probe_read_kernel(addr, 4, &sin->sin_addr))
+            return 0;
+    } else if (family == 10 /* AF_INET6 */ && namelen >= (int)sizeof(struct sockaddr_in6)) {
+        struct sockaddr_in6 *sin6 = name;
+        if (bpf_probe_read_kernel(addr, 16, &sin6->sin6_addr))
+            return 0;
+    } else {
+        return 0;
+    }
+    return bs_loopback_addr(family, addr) ? BS_LOOPBACK_IFINDEX : 0;
 }
 
 static __always_inline void account_sock(struct sock *sk, __u64 bytes, int is_rx,
@@ -131,7 +188,8 @@ static __always_inline void account_sock(struct sock *sk, __u64 bytes, int is_rx
         __sync_fetch_and_add(&v->tx, bytes);
 }
 
-static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u8 proto)
+static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u8 proto,
+                                    __u32 hint)
 {
     if (bytes <= 0)  // negative = error, zero = nothing sent
         return;
@@ -139,7 +197,7 @@ static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u
     struct app_key k = {};
     k.cgroup_id = bpf_get_current_cgroup_id();
     k.tgid = bpf_get_current_pid_tgid() >> 32;
-    k.ifindex = sk_ifindex(sk);
+    k.ifindex = sk_ifindex(sk, hint);
 
     struct app_val *v = bpf_map_lookup_elem(&map_app, &k);
     if (!v) {
@@ -155,6 +213,11 @@ static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u
             __sync_fetch_and_add(&v->tx, (__u64)bytes);
             __sync_fetch_and_add(&v->tx_pkts, 1);
         }
+    } else {
+        __u32 zero = 0;
+        __u64 *d = bpf_map_lookup_elem(&app_dropped, &zero);
+        if (d)
+            __sync_fetch_and_add(d, (__u64)bytes);
     }
 
     // After map_app, and independent of it: a full map_sock must never cost
@@ -165,35 +228,49 @@ static __always_inline void account(struct sock *sk, __s64 bytes, int is_rx, __u
 SEC("fexit/tcp_sendmsg")
 int BPF_PROG(bs_tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size, int ret)
 {
-    account(sk, ret, 0, 6);
+    account(sk, ret, 0, 6, 0);
     return 0;
 }
 
 SEC("fentry/tcp_cleanup_rbuf")
 int BPF_PROG(bs_tcp_recv, struct sock *sk, int copied)
 {
-    account(sk, copied, 1, 6);
+    account(sk, copied, 1, 6, 0);
     return 0;
 }
 
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(bs_udp_sendmsg, struct sock *sk, struct msghdr *msg, size_t len, int ret)
 {
-    account(sk, ret, 0, 17);
+    if (ret <= 0)
+        return 0;
+    // An AF_INET6 socket sending to a v4-mapped address goes through
+    // udpv6_sendmsg, which calls udp_sendmsg for the actual send. Both fexit
+    // programs then fire for one datagram; it is counted by bs_udpv6_sendmsg
+    // only. udp_sendmsg is not reached for an AF_INET6 socket any other way.
+    if (BPF_CORE_READ(sk, __sk_common.skc_family) == 10 /* AF_INET6 */)
+        return 0;
+    account(sk, ret, 0, 17, udp_dest_hint(msg));
     return 0;
 }
 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(bs_udpv6_sendmsg, struct sock *sk, struct msghdr *msg, size_t len, int ret)
 {
-    account(sk, ret, 0, 17);
+    if (ret <= 0)
+        return 0;
+    account(sk, ret, 0, 17, udp_dest_hint(msg));
     return 0;
 }
 
 SEC("fentry/skb_consume_udp")
 int BPF_PROG(bs_udp_recv, struct sock *sk, struct sk_buff *skb, int len)
 {
-    account(sk, len, 1, 17);
+    // The interface this datagram arrived on: exact, and the only source for an
+    // unconnected socket, which has no cached route. skb_iif rather than
+    // skb->dev: the receive path may clear dev once the skb is queued.
+    int iif = len > 0 ? BPF_CORE_READ(skb, skb_iif) : 0;
+    account(sk, len, 1, 17, iif > 0 ? iif : 0);
     return 0;
 }
 

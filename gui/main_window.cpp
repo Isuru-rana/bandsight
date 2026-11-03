@@ -193,8 +193,8 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(history_, &HistoryStore::quota, quota_, &QuotaBar::setQuota);
     connect(history_, &HistoryStore::quota, tray_, &TrayIcon::onQuota);
     connect(history_, &HistoryStore::appTotals, this,
-            [this](const QVector<AppTotal>& totals) {
-                usage_->setTotals(totals);
+            [this](const QVector<AppTotal>& totals, bool ok) {
+                usage_->setTotals(totals, ok);
             });
     connect(history_, &HistoryStore::hostPairs, this,
             [this](const QVector<AppHostTotal>& pairs, bool collected, qint64 since) {
@@ -397,6 +397,10 @@ void MainWindow::refreshFromHistory() {
     const bool ranged = sel_to_ > sel_from_;
     const int res = window_spec(w).res;
     const qint64 from = sel_from_, to = sel_to_;
+    // The headline and the rows come back as separate replies; until all three
+    // below have arrived, the Usage tab must not compare one period's headline
+    // with another's rows.
+    usage_->beginRefresh();
     QMetaObject::invokeMethod(history_, [h = history_, w, now, ranged, res, from, to] {
         if (ranged) {
             // Same signals, same tier: a selection narrows what is counted, not
