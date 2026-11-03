@@ -8,11 +8,9 @@ is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight
 ### Added
 - Traffic type card on the Usage tab: bytes by service (HTTPS, QUIC, DNS, SSH, …)
 - Local port recorded per socket
-- Database table `type_samples` (schema 4)
+- Database table `type_samples`
 
 ### Changed
-- Database schema 3 -> 4, migrated on daemon start
-- Older bandsightd refuses a schema 4 database
 
 ### Fixed
 
