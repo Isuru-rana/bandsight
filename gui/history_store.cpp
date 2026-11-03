@@ -321,6 +321,78 @@ void HistoryStore::emitHostPairs(qint64 from, qint64 to, qint64 data_end, int re
     emit hostPairs(out, true, since);
 }
 
+void HistoryStore::queryTypeTotals(Window w, qint64 now) {
+    const WindowSpec spec = window_spec(w);
+    emitTypeTotals(now - spec.range_s, now, now, spec.res);   // see queryHostTotals
+}
+
+void HistoryStore::queryTypeTotalsRange(qint64 from, qint64 to, int res) {
+    const int tres = host_res(res);   // see queryHostTotalsRange
+    const qint64 data_end =
+        std::min<qint64>(bandsight::bucket_next(bandsight::bucket_start(to, tres), tres),
+                         QDateTime::currentSecsSinceEpoch());
+    emitTypeTotals(from, to, std::max(data_end, to), res);
+}
+
+// The same tiers, widening and proration as emitHostPairs, and the same
+// interface filter as the Apps and Hosts queries.
+void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int res) {
+    const int tres = host_res(res);
+    const qint64 start = bandsight::bucket_start(from, tres);
+
+    QSqlQuery probe(db_);
+    const bool collected =
+        probe.exec(QStringLiteral(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='type_samples'"))
+        && probe.next() && probe.value(0).toInt() == 1;
+    if (!collected) {
+        emit typeTotals({}, false, 0);
+        return;
+    }
+
+    // Per tier, so each MIN() is one primary-key seek rather than a scan.
+    qint64 since = 0;
+    if (probe.exec(QStringLiteral(
+            "SELECT MIN(t) FROM ("
+            "  SELECT MIN(ts) AS t FROM type_samples WHERE res=60"
+            "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=3600"
+            "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=86400)")) &&
+        probe.next() && !probe.value(0).isNull()) {
+        const qint64 first = probe.value(0).toLongLong();
+        if (first > start) since = first;
+    }
+
+    double scale = 1.0;
+    if (tres != res && data_end > start) {
+        scale = std::clamp(double(to - from) / double(data_end - start), 0.0, 1.0);
+    }
+
+    QVector<TypeTotal> out;
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral(
+        "SELECT s.proto, s.port, SUM(s.rx), SUM(s.tx) "
+        "FROM type_samples s JOIN ifaces i ON i.id = s.iface_id "
+        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
+        "GROUP BY s.proto, s.port HAVING SUM(s.rx) + SUM(s.tx) > 0"));
+    q.addBindValue(tres);
+    q.addBindValue(start);
+    q.addBindValue(to);
+    if (q.exec()) {
+        while (q.next()) {
+            TypeTotal t;
+            t.proto = q.value(0).toInt();
+            t.port = q.value(1).toInt();
+            t.rx = quint64(std::llround(double(q.value(2).toULongLong()) * scale));
+            t.tx = quint64(std::llround(double(q.value(3).toULongLong()) * scale));
+            out.push_back(t);
+        }
+    } else {
+        qWarning() << "bandsight: type totals query failed, emitting an empty"
+                   << "table:" << q.lastError().text();
+    }
+    emit typeTotals(out, true, since);
+}
+
 namespace {
 quint64 sum_over(QSqlDatabase& db, int res, qint64 from, qint64 to,
                  quint64& tx_out) {

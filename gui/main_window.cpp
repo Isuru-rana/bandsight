@@ -41,6 +41,7 @@ void register_metatypes() {
         qRegisterMetaType<QVector<IfaceTotal>>();
         qRegisterMetaType<QVector<AppTotal>>();
         qRegisterMetaType<QVector<AppHostTotal>>();
+        qRegisterMetaType<QVector<TypeTotal>>();
         qRegisterMetaType<QuotaInfo>();
         qRegisterMetaType<QSet<int>>("QSet<int>");
         qRegisterMetaType<LiveClient::State>();
@@ -204,6 +205,8 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
                 // pairs, so a ranged answer is not theirs.
                 if (!(sel_to_ > sel_from_)) graph_->setHostPairs(pairs, collected);
             });
+
+    connect(history_, &HistoryStore::typeTotals, usage_, &UsageTab::setTypeTotals);
 
     // --- widgets ------------------------------------------------------------
     connect(tray_, &TrayIcon::settingsRequested, this, &MainWindow::openSettings);
@@ -408,10 +411,12 @@ void MainWindow::refreshFromHistory() {
             h->queryIfaceTotalsRange(from, to, res);
             h->queryAppTotalsRange(from, to, res);
             h->queryHostTotalsRange(from, to, res);
+            h->queryTypeTotalsRange(from, to, res);
         } else {
             h->queryIfaceTotals(w, now);
             h->queryAppTotals(w, now);
             h->queryHostTotals(w, now);
+            h->queryTypeTotals(w, now);
         }
         // Independent of the graph's window and of any selection: a cap runs on
         // its own cycle and is not something the timeline can narrow.

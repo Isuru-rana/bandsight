@@ -12,6 +12,7 @@
 
 #include "app_labels.h"
 #include "host_class.h"
+#include "service_names.h"
 #include "theme.h"
 #include "unattributed.h"
 #include "units.h"
@@ -34,6 +35,8 @@ UsageTab::UsageTab(QWidget* parent)
       traffic_(new Card(tr("Traffic type"))),
       hosts_list_(new RankedList),
       hosts_note_(new QLabel),
+      traffic_list_(new RankedList),
+      traffic_note_(new QLabel),
       period_(new QLabel(this)),
       excluding_(new QLabel(this)),
       window_(new QComboBox(this)) {
@@ -75,10 +78,25 @@ UsageTab::UsageTab(QWidget* parent)
     hosts_box->addStretch();
     hosts_->setBody(hosts_body);
 
-    // Named honestly. "Coming soon" would be a promise; this states the
-    // condition, which is the thing a reader can actually check.
-    traffic_->setReserved(tr("Needs port and protocol collection.\nThe daemon does "
-                             "not record them yet."));
+    // Same shape as Hosts: a list, and one line under it for an old daemon,
+    // an empty period, or a period older than type recording.
+    traffic_list_->setShowChips(false);
+    traffic_list_->setCursor(Qt::ArrowCursor);   // rows have no key: not clickable
+    traffic_note_->setObjectName(QStringLiteral("trafficNote"));   // findChild, for tests
+    traffic_note_->setWordWrap(true);
+    traffic_note_->setAlignment(Qt::AlignCenter);
+    traffic_note_->setStyleSheet(QStringLiteral("color:%1;").arg(theme().ink_muted.name()));
+    traffic_note_->hide();
+
+    auto* traffic_body = new QWidget;
+    auto* traffic_box = new QVBoxLayout(traffic_body);
+    traffic_box->setContentsMargins(0, 0, 0, 0);
+    traffic_box->addWidget(traffic_list_, 1);
+    traffic_list_->hide();   // nothing to list until the first reply
+    traffic_box->addStretch();
+    traffic_box->addWidget(traffic_note_);
+    traffic_box->addStretch();
+    traffic_->setBody(traffic_body);
 
     auto* columns = new QHBoxLayout;
     columns->setSpacing(10);
@@ -218,6 +236,58 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
     updateHostsNote();
     updateUnattributed();
     recomputeSplit();
+}
+
+void UsageTab::setTypeTotals(const QVector<TypeTotal>& totals, bool collected,
+                             qint64 since) {
+    // Several (proto, port) pairs share a name: DNS over TCP and UDP, the
+    // mail ports. One row per name, the pairs listed in its tooltip.
+    struct Acc {
+        quint64 rx = 0, tx = 0;
+        QVector<QPair<quint64, QString>> ports;
+    };
+    QHash<QString, Acc> by_name;
+    for (const TypeTotal& t : totals) {
+        Acc& a = by_name[service_name(t.proto, t.port)];
+        a.rx += t.rx;
+        a.tx += t.tx;
+        if (t.port != 0) a.ports.append({t.rx + t.tx, port_label(t.proto, t.port)});
+    }
+
+    QVector<RankedList::Row> rows;
+    rows.reserve(by_name.size());
+    for (auto it = by_name.begin(); it != by_name.end(); ++it) {
+        Acc& a = it.value();
+        std::sort(a.ports.begin(), a.ports.end(),
+                  [](const auto& x, const auto& y) { return x.first > y.first; });
+        QStringList ports;
+        for (const auto& p : a.ports) ports << p.second;
+        const QString tip = ports.isEmpty()
+            ? tr("No well-known port on either side, or no fixed remote port\n"
+                 "(unconnected UDP)")
+            : ports.join(QStringLiteral(" · "));
+        rows.push_back({it.key(), tip, a.rx + a.tx, a.rx, a.tx, QString()});   // no key
+    }
+    std::sort(rows.begin(), rows.end(), [](const RankedList::Row& x, const RankedList::Row& y) {
+        return x.value != y.value ? x.value > y.value : x.label < y.label;
+    });
+    traffic_list_->setRows(rows);
+
+    QString text;
+    if (!collected) {
+        text = tr("Update bandsightd to see traffic types.");
+    } else if (since > 0) {
+        // The period starts before the first type row: older history has apps
+        // and hosts but no types, so the list covers only part of it.
+        text = tr("Traffic types recorded since %1")
+                   .arg(QDateTime::fromSecsSinceEpoch(since)
+                            .toString(QStringLiteral("d MMM yyyy HH:mm")));
+    } else if (rows.isEmpty()) {
+        text = tr("No traffic in this period");
+    }
+    traffic_note_->setText(text);
+    traffic_note_->setVisible(!text.isEmpty());
+    traffic_list_->setVisible(collected && !rows.isEmpty());
 }
 
 // "Clearly short": under 90% of what the apps moved, and at least 1 MB of it, so
