@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Traffic types in the daemon: the service-port rule, per-tick aggregation,
-// the schema 3 -> 4 migration, and type_samples in rollup and retention.
+// type_samples added to a v3 database without a version bump, and
+// type_samples in rollup and retention.
 #include <sqlite3.h>
 
 #include <cstdio>
@@ -122,9 +123,12 @@ void aggregation() {
     CHECK(https && quic && unknown_if && other);
 }
 
-// A v3 database is a v4 one without type_samples and with schema_version 3.
-void migration_3_to_4() {
-    const char* path = "test_migration_v3.db";
+// A database written by 0.3.1: schema_version 3, no type_samples. This build
+// adds the table and leaves the version at 3, so the 0.3.1 daemon - whose
+// only check is schema_version == 3, and which never reads type_samples -
+// keeps working on the file after a package rollback.
+void v3_database_gains_type_samples() {
+    const char* path = "test_v3_type_samples.db";
     std::remove(path);
     std::int64_t app = 0;
     {
@@ -134,19 +138,19 @@ void migration_3_to_4() {
         app = s.upsert_app("/usr/bin/curl", "curl", "");
         s.write_samples(1'700'000'000, {{2, 10, 20}}, {{app, 2, 10, 20}},
                         {{app, 2, "1.1.1.1", 10, 20}});
-        sqlite3_exec(s.handle(), "DROP TABLE type_samples;"
-                                 "UPDATE config SET value='3' WHERE key='schema_version'",
-                     nullptr, nullptr, nullptr);
+        sqlite3_exec(s.handle(), "DROP TABLE type_samples", nullptr, nullptr, nullptr);
         CHECK(s.schema_version() == 3);
+        CHECK(scalar(s.handle(),
+                     "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'") == 0);
     }
     {
-        Store s(path);
+        Store s(path);   // this build opens the 0.3.1 database
         bool ok = true;
         try { s.migrate(); } catch (...) { ok = false; }
         CHECK(ok);
-        CHECK(s.schema_version() == 4);
-        CHECK(scalar(s.handle(), "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'")
-              == 1);
+        CHECK(scalar(s.handle(),
+                     "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'") == 1);
+        CHECK(s.schema_version() == 3);   // what a 0.3.1 daemon requires
         // Existing history is untouched.
         CHECK(scalar(s.handle(), "SELECT SUM(rx) FROM app_samples") == 10);
         CHECK(scalar(s.handle(), "SELECT SUM(tx) FROM app_host_samples") == 20);
@@ -158,13 +162,22 @@ void migration_3_to_4() {
             wrote = false;
         }
         CHECK(wrote);
-        // Idempotent on the next start.
+        // Idempotent on the next start, still version 3.
         try { s.migrate(); } catch (...) { ok = false; }
-        CHECK(ok && s.schema_version() == 4);
+        CHECK(ok && s.schema_version() == 3);
     }
     std::remove(path);
     std::remove((std::string(path) + "-wal").c_str());
     std::remove((std::string(path) + "-shm").c_str());
+}
+
+// A fresh database gets the table and version 3 as well.
+void fresh_database_is_v3() {
+    Store s(":memory:");
+    s.migrate();
+    CHECK(s.schema_version() == 3);
+    CHECK(scalar(s.handle(), "SELECT COUNT(*) FROM sqlite_master WHERE name='type_samples'")
+          == 1);
 }
 
 void rollup_and_retention() {
@@ -207,7 +220,8 @@ int main() {
     service_port_rule();
     ephemeral_range_file();
     aggregation();
-    migration_3_to_4();
+    v3_database_gains_type_samples();
+    fresh_database_is_v3();
     rollup_and_retention();
     if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);
     else std::printf("test_traffic_type: all checks passed\n");

@@ -22,9 +22,20 @@ namespace {
 // v3: app_host_samples gained iface_id, so host bytes obey the same accounting
 // rule (only physical and wifi interfaces count) as every other total.
 //
-// v4: type_samples, bytes per (interface, protocol, service port) for the
-// Traffic type column. A new table only; nothing existing changes.
-constexpr int kSchemaVersion = 4;
+// Not a version bump: type_samples (bytes per interface, protocol and service
+// port, for the Traffic type column) is a new table and nothing else changes,
+// so it is created by kSchema's IF NOT EXISTS on any v3 database. A daemon
+// that predates it ignores the table, and rolling back a package keeps
+// working; a version bump would have made every older daemon refuse the file
+// (the check at the end of migrate()).
+//
+// Future idea, not implemented: store a separate "min_reader_version" next to
+// schema_version. A change that older readers can safely ignore (a new table,
+// a new nullable column) raises schema_version only; one they would misread
+// raises min_reader_version too, and a daemon refuses a database only when
+// min_reader_version is above what it understands. Additive changes would then
+// never block a downgrade.
+constexpr int kSchemaVersion = 3;
 
 const char* kSchema = R"SQL(
 CREATE TABLE IF NOT EXISTS apps(
@@ -153,16 +164,6 @@ void Store::migrate() {
         exec("DROP TABLE app_host_samples");
         exec(kSchema);   // IF NOT EXISTS: recreates only what is missing
         exec("UPDATE config SET value='3' WHERE key='schema_version'");
-        exec("COMMIT");
-    }
-
-    // v3 -> v4. type_samples is new; kSchema (IF NOT EXISTS) creates it and
-    // leaves every other table as it is. Types are recorded from here on, so
-    // older periods have none - the GUI says since when.
-    if (schema_version() == 3) {
-        exec("BEGIN");
-        exec(kSchema);
-        exec("UPDATE config SET value='4' WHERE key='schema_version'");
         exec("COMMIT");
     }
 

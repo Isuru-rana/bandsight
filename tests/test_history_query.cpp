@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     h.queryTypeTotalsRange(ts - 3600, ts + 59, 60);
     CHECK(collected && since == ts);
 
-    // A database from a daemon older than schema 4 has no table.
+    // A database only a 0.3.1 or older daemon has touched has no table.
     {
         sqlite3* db = nullptr;
         sqlite3_open(path.toUtf8().constData(), &db);

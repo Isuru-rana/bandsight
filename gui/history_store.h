@@ -61,9 +61,9 @@ signals:
     // began, if that is inside the period (0 otherwise) - app history is older
     // than host history, so the two cannot be compared before it.
     void hostPairs(QVector<AppHostTotal> pairs, bool collected, qint64 since);
-    // collected=false: no type_samples table (a daemon older than schema 4).
-    // since: when type recording began, if that is inside the period (0
-    // otherwise).
+    // collected=false: no type_samples table (only a daemon older than the
+    // Traffic type column has touched the database). since: when type
+    // recording began, if that is inside the period (0 otherwise).
     void typeTotals(QVector<TypeTotal> totals, bool collected, qint64 since);
     void quota(QuotaInfo info);
 
