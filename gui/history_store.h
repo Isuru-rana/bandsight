@@ -48,7 +48,9 @@ signals:
     void openFailed(const QString& db_path, const QString& reason);  // + SQLite's message
     void series(Window w, QVector<SeriesPoint> points);
     void ifaceTotals(QVector<IfaceTotal> totals);
-    void appTotals(QVector<AppTotal> totals);
+    // ok=false: the query failed and totals is empty, which is not the same
+    // as "no application moved anything" (a degraded daemon, BPF not loaded).
+    void appTotals(QVector<AppTotal> totals, bool ok);
     // collected=false: the database predates host collection (no iface_id
     // column) - an old daemon, not an idle network. since: when host recording
     // began, if that is inside the period (0 otherwise) - app history is older

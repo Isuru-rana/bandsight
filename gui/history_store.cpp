@@ -197,6 +197,7 @@ void HistoryStore::queryAppTotalsRange(qint64 from, qint64 to, int res) {
     const qint64 start = from;
 
     QVector<AppTotal> out;
+    bool ok = true;
     QSqlQuery q(db_);
     q.prepare(QStringLiteral(
         "SELECT a.id, a.exe, a.name, SUM(s.rx), SUM(s.tx) "
@@ -224,8 +225,9 @@ void HistoryStore::queryAppTotalsRange(qint64 from, qint64 to, int res) {
         // query may be dispatched before opened().
         qWarning() << "bandsight: app totals query failed, emitting an empty"
                    << "table:" << q.lastError().text();
+        ok = false;
     }
-    emit appTotals(out);
+    emit appTotals(out, ok);
 }
 
 namespace {

@@ -300,8 +300,9 @@ void UsageTab::recomputeSplit() {
     excluding_->setVisible(!text.isEmpty());
 }
 
-void UsageTab::setTotals(const QVector<AppTotal>& totals) {
+void UsageTab::setTotals(const QVector<AppTotal>& totals, bool complete) {
     totals_ = totals;
+    apps_complete_ = complete;
     // Labels are disambiguated only where they collide (U4): four different node
     // binaries otherwise render as four rows called "node", with the only thing
     // telling them apart hidden in a tooltip.
@@ -357,21 +358,31 @@ void UsageTab::updateUnattributed() {
         "forwarded packets, or history recorded by an older bandsightd.\n"
         "Included in the total; it cannot be excluded.");
 
-    quint64 down = 0, up = 0;
-    for (const AppTotal& t : totals_) { down += t.rx; up += t.tx; }
-    apps_->setFooterRow(footer(unattributed(split_down_, split_up_, down, up),
-                               why.arg(tr("application"))));
+    {
+        std::optional<RankedList::Row> app_footer;
+        // A failed query is not "nothing was attributed".
+        if (apps_complete_) {
+            quint64 down = 0, up = 0;
+            for (const AppTotal& t : totals_) { down += t.rx; up += t.tx; }
+            app_footer = footer(unattributed(split_down_, split_up_, down, up),
+                                why.arg(tr("application")));
+        }
+        apps_->setFooterRow(app_footer);
+    }
 
     // Not when host recording began inside the period, or there is none: the
-    // shortfall is then expected, and the note under the list says why.
-    std::optional<RankedList::Row> host_footer;
-    if (hosts_collected_ && hosts_since_ <= 0 && !pairs_.isEmpty()) {
-        quint64 hd = 0, hu = 0;
-        for (const AppHostTotal& p : pairs_) { hd += p.rx; hu += p.tx; }
-        host_footer = footer(unattributed(split_down_, split_up_, hd, hu),
-                             why.arg(tr("host")));
+    // shortfall is then expected, and the note under the list says why. An
+    // empty list also covers a failed host query, which emits no pairs.
+    {
+        std::optional<RankedList::Row> host_footer;
+        if (hosts_collected_ && hosts_since_ <= 0 && !pairs_.isEmpty()) {
+            quint64 hd = 0, hu = 0;
+            for (const AppHostTotal& p : pairs_) { hd += p.rx; hu += p.tx; }
+            host_footer = footer(unattributed(split_down_, split_up_, hd, hu),
+                                 why.arg(tr("host")));
+        }
+        hosts_list_->setFooterRow(host_footer);
     }
-    hosts_list_->setFooterRow(host_footer);
 }
 
 void UsageTab::setPeriod(const QString& label) {

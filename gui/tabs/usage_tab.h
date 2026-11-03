@@ -41,8 +41,10 @@ public:
     QSet<QString> excludedHosts() const;
 
 public slots:
-    // Per-application rows for the window.
-    void setTotals(const QVector<AppTotal>& totals);
+    // Per-application rows for the window. complete=false: the query failed,
+    // so the rows are not the window's applications and nothing is computed
+    // from them (no Unattributed row).
+    void setTotals(const QVector<AppTotal>& totals, bool complete = true);
     // The window's overall split, which comes from the interface totals rather
     // than from summing the apps: unattributed bytes are real traffic and must
     // not vanish from the headline just because no process owned them.
@@ -98,6 +100,7 @@ private:
     QVector<AppHostTotal> pairs_;
     bool hosts_collected_ = true;
     qint64 hosts_since_ = 0;
+    bool apps_complete_ = true;
     void updateHostsNote();
     // The "Unattributed" footer of both lists: what the headline counted and the
     // rows do not account for. Recomputed whenever either side changes.

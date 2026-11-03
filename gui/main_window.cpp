@@ -193,8 +193,8 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(history_, &HistoryStore::quota, quota_, &QuotaBar::setQuota);
     connect(history_, &HistoryStore::quota, tray_, &TrayIcon::onQuota);
     connect(history_, &HistoryStore::appTotals, this,
-            [this](const QVector<AppTotal>& totals) {
-                usage_->setTotals(totals);
+            [this](const QVector<AppTotal>& totals, bool ok) {
+                usage_->setTotals(totals, ok);
             });
     connect(history_, &HistoryStore::hostPairs, this,
             [this](const QVector<AppHostTotal>& pairs, bool collected, qint64 since) {
