@@ -5,20 +5,20 @@ Origin: Bandsight
 Label: Bandsight
 Suite: stable
 Codename: stable
-Date: Tue, 03 Nov 2026 10:10:52 +0000
+Date: Tue, 03 Nov 2026 10:15:44 +0000
 Architectures: amd64
 Components: main
 Description: Bandsight network usage monitor
 MD5Sum:
- 50d07aed9d451e060ea339372e29ff26             1574 main/binary-amd64/Packages
- 6decd54dbdc15cbe1dc0a19645533fd2              630 main/binary-amd64/Packages.gz
+ 9d6129bdf446d15e936ef05a4158544e             1574 main/binary-amd64/Packages
+ 1511eb922fed251a1a81653d14cb7533              632 main/binary-amd64/Packages.gz
 SHA256:
- 0d7c4ecbab9fabe54c21e39f01e4c9e1906621c10a66f5004e58c84f0ae356c8             1574 main/binary-amd64/Packages
- 6156561ea22b6644446a39252d8efcb0666dbc031ffd74f72e4009d22bf131f3              630 main/binary-amd64/Packages.gz
+ a2b0ca5e058903404602354ae89d62c2d4db611464cae014dbc93793d77b8e1d             1574 main/binary-amd64/Packages
+ 2457ee1ed6b98b443cf020a5f1ff300a5020e274d67eb6f9bb2b2e536e6012f6              632 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCaumzLAAKCRC0NUXfBE9R
-WLUxAQCD1L5JbmoDI8m3c3TNzxEt99rQ5BddaLowDnGUaWfVigEAqnDe/L29wrS0
-JphHw14YbboVqP1vyb8KSn2s4eX8IAE=
-=JTFS
+iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCaum0UAAKCRC0NUXfBE9R
+WLOiAQDqYu7wF/zOQzxq5DuEA2DH7whsDy9zRDUS3LUcCRjWlAEAoZpgywgwy+co
+LXLUrloSg98z4OGMS1QFUUkLDfld9Q0=
+=BOPJ
 -----END PGP SIGNATURE-----
