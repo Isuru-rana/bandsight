@@ -244,6 +244,12 @@ int BPF_PROG(bs_udp_sendmsg, struct sock *sk, struct msghdr *msg, size_t len, in
 {
     if (ret <= 0)
         return 0;
+    // An AF_INET6 socket sending to a v4-mapped address goes through
+    // udpv6_sendmsg, which calls udp_sendmsg for the actual send. Both fexit
+    // programs then fire for one datagram; it is counted by bs_udpv6_sendmsg
+    // only. udp_sendmsg is not reached for an AF_INET6 socket any other way.
+    if (BPF_CORE_READ(sk, __sk_common.skc_family) == 10 /* AF_INET6 */)
+        return 0;
     account(sk, ret, 0, 17, udp_dest_hint(msg));
     return 0;
 }
