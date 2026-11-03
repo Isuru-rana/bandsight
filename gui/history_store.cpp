@@ -350,17 +350,23 @@ void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int r
         return;
     }
 
-    // Per tier, so each MIN() is one primary-key seek rather than a scan.
+    // When recording began, as the daemon stored it on its first type write.
+    // Not MIN(ts): rolled-up rows carry the start of their hour or day, which
+    // reads up to a day early. The fallback, for a database written before
+    // the key existed, is per tier so each MIN() is one primary-key seek.
     qint64 since = 0;
-    if (probe.exec(QStringLiteral(
+    bool ok_first = false;
+    qint64 first = config_value(QStringLiteral("types_since"), QString()).toLongLong(&ok_first);
+    if (!ok_first && probe.exec(QStringLiteral(
             "SELECT MIN(t) FROM ("
             "  SELECT MIN(ts) AS t FROM type_samples WHERE res=60"
             "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=3600"
             "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=86400)")) &&
         probe.next() && !probe.value(0).isNull()) {
-        const qint64 first = probe.value(0).toLongLong();
-        if (first > start) since = first;
+        first = probe.value(0).toLongLong();
+        ok_first = true;
     }
+    if (ok_first && first > start) since = first;
 
     double scale = 1.0;
     if (tres != res && data_end > start) {

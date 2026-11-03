@@ -97,6 +97,19 @@ int main(int argc, char** argv) {
     h.queryTypeTotalsRange(ts - 3600, ts + 59, 60);
     CHECK(collected && since == ts);
 
+    // A rolled-up daily row is stamped at the start of its day, before the
+    // first byte; the recorded start still wins over that row's ts.
+    {
+        sqlite3* db = nullptr;
+        sqlite3_open(path.toUtf8().constData(), &db);
+        const std::string sql = "INSERT INTO type_samples VALUES(86400," +
+                                std::to_string(ts - 50'000) + ",2,6,443,1,1)";
+        sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    h.queryTypeTotalsRange(ts - 3600, ts + 59, 60);
+    CHECK(collected && since == ts);
+
     // A database only a 0.3.1 or older daemon has touched has no table.
     {
         sqlite3* db = nullptr;

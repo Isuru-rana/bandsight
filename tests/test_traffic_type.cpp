@@ -205,6 +205,46 @@ void v3_database_gains_type_samples() {
     std::remove((std::string(path) + "-shm").c_str());
 }
 
+std::string config(sqlite3* db, const char* key) {
+    sqlite3_stmt* st = nullptr;
+    std::string v;
+    if (sqlite3_prepare_v2(db, "SELECT value FROM config WHERE key=?", -1, &st, nullptr) ==
+        SQLITE_OK) {
+        sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+        if (sqlite3_step(st) == SQLITE_ROW)
+            v = reinterpret_cast<const char*>(sqlite3_column_text(st, 0));
+    }
+    sqlite3_finalize(st);
+    return v;
+}
+
+// The first type write records the exact second, and nothing moves it later:
+// not another write, not a restart.
+void types_since_recorded() {
+    const char* path = "test_types_since.db";
+    std::remove(path);
+    {
+        Store s(path);
+        s.migrate();
+        s.upsert_iface(2, "eth0", "physical");
+        s.write_samples(1'700'000'017, {{2, 1, 1}}, {}, {}, {});
+        CHECK(config(s.handle(), "types_since").empty());   // no type bytes yet
+        s.write_samples(1'700'000'023, {}, {}, {}, {{2, kTcp, 443, 5, 6}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+        s.write_samples(1'700'000'099, {}, {}, {}, {{2, kTcp, 443, 5, 6}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+    }
+    {
+        Store s(path);
+        s.migrate();
+        s.write_samples(1'700'009'000, {}, {}, {}, {{2, kUdp, 443, 1, 1}});
+        CHECK(config(s.handle(), "types_since") == "1700000023");
+    }
+    std::remove(path);
+    std::remove((std::string(path) + "-wal").c_str());
+    std::remove((std::string(path) + "-shm").c_str());
+}
+
 // A fresh database gets the table and version 3 as well.
 void fresh_database_is_v3() {
     Store s(":memory:");
@@ -256,6 +296,7 @@ int main() {
     aggregation();
     v3_database_gains_type_samples();
     fresh_database_is_v3();
+    types_since_recorded();
     rollup_and_retention();
     if (g_failures) std::fprintf(stderr, "%d check(s) failed\n", g_failures);
     else std::printf("test_traffic_type: all checks passed\n");

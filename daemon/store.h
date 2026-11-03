@@ -74,7 +74,9 @@ public:
     // Writes one res=1 bucket for ifaces/apps. Host and type deltas go to the
     // res=60 bucket containing ts: those rows are minute-grained (there is no
     // res=1 tier for them), and the current minute is written live so the GUI
-    // need not wait for a rollup. Single transaction. Repeat writes for the
+    // need not wait for a rollup. The first type write also records ts as
+    // config 'types_since', when Traffic type recording began. Single
+    // transaction. Repeat writes for the
     // same ts accumulate, so a restart mid-second cannot lose or duplicate a row.
     void write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces,
                        const std::vector<AppDelta>& apps,
@@ -91,6 +93,9 @@ public:
 private:
     void exec(const std::string& sql);
     sqlite3* db_ = nullptr;
+    // config 'types_since' is known to be set: the first type write stores
+    // its second there (INSERT OR IGNORE), and later writes need not ask.
+    bool types_since_set_ = false;
 };
 
 }  // namespace bandsight

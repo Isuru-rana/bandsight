@@ -440,6 +440,12 @@ void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces
                 }
             }
             sqlite3_finalize(st);
+            // The exact second recording began. The GUI cannot derive it from
+            // the rows: hourly and daily rows are stamped with the start of
+            // their bucket, up to a day before the first byte.
+            if (!types_since_set_)
+                exec("INSERT OR IGNORE INTO config(key, value) VALUES('types_since', '" +
+                     std::to_string(ts) + "')");
         }
     } catch (...) {
         // SQLite auto-rolls-back on SQLITE_FULL, so this ROLLBACK then fails
@@ -456,6 +462,7 @@ void Store::write_samples(std::int64_t ts, const std::vector<IfaceDelta>& ifaces
         throw;
     }
     exec("COMMIT");
+    if (!types.empty()) types_since_set_ = true;
 }
 
 }  // namespace bandsight
