@@ -188,6 +188,10 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_traffic_type PRIVATE bandsight_core)
   add_test(NAME traffic_type COMMAND test_traffic_type)
 
+  add_executable(test_store tests/test_store.cpp)
+  target_link_libraries(test_store PRIVATE bandsight_core)
+  add_test(NAME store COMMAND test_store)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)

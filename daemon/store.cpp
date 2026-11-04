@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "store.h"
 
+#include <fcntl.h>
 #include <sys/stat.h>
 
 #include <cerrno>
@@ -100,8 +101,12 @@ CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 }  // namespace
 
 Store::Store(const std::string& path) {
+    // NOFOLLOW: the state directory is writable by group bandsight, so a
+    // member could replace the database with a symlink, and the root daemon
+    // would then create or rewrite whatever file it points at.
     if (sqlite3_open_v2(path.c_str(), &db_,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK) {
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOFOLLOW,
+                        nullptr) != SQLITE_OK) {
         const std::string msg = db_ ? sqlite3_errmsg(db_) : "open failed";
         sqlite3_close(db_);
         throw std::runtime_error("Store: " + msg);
@@ -113,9 +118,15 @@ Store::Store(const std::string& path) {
     // ENOENT on a sidecar is expected (they appear lazily, on first write) and
     // must stay silent; any other failure is logged, matching
     // UnixSocketControl::start()'s chmod handling.
+    //
+    // Never through a symlink. Group members can create files in the state
+    // directory, and a planted "bandsight.db-wal -> /some/root/file" made this
+    // root process chmod that file 0660. A symlink is refused (EOPNOTSUPP) and
+    // logged; SQLite refuses to use one as well.
     if (path != ":memory:") {
         for (const std::string& p : {path, path + "-wal", path + "-shm"}) {
-            if (::chmod(p.c_str(), 0660) != 0 && errno != ENOENT) {
+            if (::fchmodat(AT_FDCWD, p.c_str(), 0660, AT_SYMLINK_NOFOLLOW) != 0 &&
+                errno != ENOENT) {
                 std::fprintf(stderr,
                              "bandsightd: chmod(%s, 0660) failed: %s; group readers may not be "
                              "able to recover the WAL\n",
