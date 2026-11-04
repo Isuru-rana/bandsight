@@ -8,7 +8,7 @@
 <p align="center"><b>See which apps use your bandwidth on Linux. Always on, kept forever, no packet capture.</b></p>
 
 > [!WARNING]
-> **Bandsight is under active development (v0.2.x, pre-1.0).**
+> **Bandsight is under active development (v0.4.x, pre-1.0).**
 > Tested on Ubuntu 26.04, kernel 7.0, KDE Plasma (Wayland), x86_64. Other distros,
 > kernels and desktops are built in CI but not yet tested at runtime.
 > The SQLite schema and the socket protocol may change between releases.
@@ -74,6 +74,7 @@ time, that is what Bandsight is for.
 - Usage view: total donut with download/upload split, apps ranked by usage, timeline
 - Hosts column: bytes per remote host, per app, named by the domain the app looked up
   (via systemd-resolved) and tagged LAN or WAN
+- Traffic type column: bytes per service (HTTPS, QUIC, DNS, SSH, …), from socket ports
 - Data cap with a billing cycle start day and a projection to the end of the cycle
 - Tray icon showing current rates; closing the window hides it to the tray
 - Light and dark aware chart colours
