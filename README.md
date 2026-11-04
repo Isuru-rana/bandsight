@@ -61,7 +61,7 @@ are the things I needed that Sniffnet does not do, and that Bandsight does:
 | Tray icon with live rates | No | Yes (StatusNotifier) |
 | Apps that start and exit quickly | | Caught via exec events; apps already running at daemon start are seeded from `/proc` |
 
-To be fair, Sniffnet has plenty that Bandsight does not: per-country views, protocol and service detection, notifications, PCAP import/export and themes.
+To be fair, Sniffnet has plenty that Bandsight does not: per-country views, protocol and service detection, notifications and PCAP import/export.
 If you want to inspect traffic, use Sniffnet. If you want to account for it over
 time, that is what Bandsight is for.
 
@@ -77,7 +77,11 @@ time, that is what Bandsight is for.
 - Traffic type column: bytes per service (HTTPS, QUIC, DNS, SSH, …), from socket ports
 - Data cap with a billing cycle start day and a projection to the end of the cycle
 - Tray icon showing current rates; closing the window hides it to the tray
-- Light and dark aware chart colours
+- Themes: System (follows the desktop's light or dark mode), Light, Dark, High contrast,
+  Sand and Slate, each checked for text contrast and colour-blind safe download/upload colours
+- Speed in Mb/s or MB/s and volume in GB or GiB, applied everywhere as soon as you pick them
+- Settings from the gear next to the tabs, `Ctrl+,` or the tray menu; About shows the GUI and
+  daemon versions and copies them for bug reports
 - Hardened systemd service (narrow capabilities, `ProtectSystem=strict`, `NoNewPrivileges`)
 - Live JSON feed over a Unix socket for your own scripts
 

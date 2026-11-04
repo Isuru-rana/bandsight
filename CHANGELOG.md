@@ -5,10 +5,25 @@ is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight
 
 ## [Unreleased]
 
+### Added
+- Settings button in the main window, and `Ctrl+,`
+- Settings sections: General, Display, About
+- Themes: System, Light, Dark, High contrast, Sand, Slate
+- About: GUI and daemon version, database path, Qt, build type, commit, "Copy details"
+- `bandsightd --version` and `--help`, `bandsight --version`
+- Optional `version` field in the hello frame
+
 ### Changed
 - bandsightd refuses a database path that is a symlink
+- bandsightd exits with status 2 on an unknown option or a flag without a value
+- Unit and theme changes apply immediately; Cancel reverts them
+- Speed unit choices spelled out: Mb/s megabits, MB/s megabytes
+- Settings OK contacts bandsightd only when the cap or cycle day changed
+- Light theme upload colour one step darker, for 3:1 against the chart background
 
 ### Fixed
+- A unit change left the data cap bar, Interfaces table, host tooltips and tray tooltip in the old unit until the next refresh
+- bandsightd given an unknown option or `--db` without a path started on the default database
 - Group members could make bandsightd chmod or overwrite files via symlinks in its state directory
 - An app updated while running split into a second "(deleted)" app
 - Data cap counting one hour twice (or missing it) the day after a DST change
