@@ -209,6 +209,13 @@ if(BANDSIGHT_BUILD_TESTS)
     target_link_libraries(test_service_names PRIVATE bandsight_core Qt6::Core)
     add_test(NAME service_names COMMAND test_service_names)
 
+    add_executable(test_gui_logic tests/test_gui_logic.cpp gui/history_store.cpp
+        gui/quota.cpp gui/frame_codec.cpp gui/host_class.cpp)
+    set_target_properties(test_gui_logic PROPERTIES AUTOMOC ON)
+    target_include_directories(test_gui_logic PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+    target_link_libraries(test_gui_logic PRIVATE bandsight_core Qt6::Core Qt6::Sql Qt6::Network)
+    add_test(NAME gui_logic COMMAND test_gui_logic)
+
     # The GUI's own sources minus main(), so the test drives the real widgets.
     get_target_property(_gui_sources bandsight SOURCES)
     list(REMOVE_ITEM _gui_sources gui/main.cpp)

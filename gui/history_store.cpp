@@ -447,8 +447,11 @@ void HistoryStore::queryQuota(qint64 now) {
             "SELECT MAX(ts) FROM iface_samples WHERE res=86400 AND ts>=? AND ts<?"));
         q.addBindValue(c.start);
         q.addBindValue(now);
+        // The day after the last closed one, by the daemon's own bucket
+        // rule: + 86400 lands an hour early on a 25-hour day, counting that
+        // hour twice, and an hour late on a 23-hour day, missing it.
         if (q.exec() && q.next() && !q.value(0).isNull())
-            boundary = q.value(0).toLongLong() + 86400;
+            boundary = bandsight::bucket_next(q.value(0).toLongLong(), 86400);
     }
 
     quint64 tx = 0;
