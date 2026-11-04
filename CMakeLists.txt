@@ -7,6 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra -Werror)
 
 
+# Version and build type for the daemon's --version and hello frame and the
+# GUI's About page, from project() above and never written anywhere else.
+configure_file(cmake/build_info.h.in ${CMAKE_BINARY_DIR}/generated/build_info.h @ONLY)
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 pkg_check_modules(LIBBPF REQUIRED IMPORTED_TARGET libbpf)
@@ -30,8 +34,10 @@ add_library(bandsight_core STATIC
     daemon/unix_socket_control.cpp
     daemon/host_accounting.cpp
     daemon/traffic_type.cpp
+    daemon/cli.cpp
 )
-target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon)
+target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon
+                           ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(bandsight_core PUBLIC PkgConfig::SQLITE3 PkgConfig::LIBBPF)
 
 add_executable(bandsightd daemon/main.cpp)
@@ -207,6 +213,15 @@ if(BANDSIGHT_BUILD_TESTS)
   add_executable(test_time tests/test_time.cpp)
   target_link_libraries(test_time PRIVATE bandsight_core)
   add_test(NAME time COMMAND test_time)
+
+  # Runs the real bandsightd binary: --version and --help must exit before
+  # anything is opened, and a bad flag must not start the daemon.
+  add_executable(test_cli tests/test_cli.cpp)
+  target_link_libraries(test_cli PRIVATE bandsight_core)
+  target_compile_definitions(test_cli PRIVATE
+      BANDSIGHT_TEST_PROJECT_VERSION="${PROJECT_VERSION}")
+  add_dependencies(test_cli bandsightd)
+  add_test(NAME cli COMMAND test_cli $<TARGET_FILE:bandsightd>)
 
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
