@@ -9,6 +9,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <string_view>
 #include <system_error>
 
 namespace bandsight {
@@ -27,7 +28,7 @@ std::string read_exe_link(std::uint32_t tgid) {
     const std::string link = "/proc/" + std::to_string(tgid) + "/exe";
     const ssize_t n = ::readlink(link.c_str(), buf, sizeof(buf) - 1);
     if (n <= 0) return {};
-    return std::string(buf, static_cast<std::size_t>(n));
+    return exe_identity(std::string(buf, static_cast<std::size_t>(n)));
 }
 
 // True if /proc/<tgid> still exists, i.e. the process has not exited.
@@ -89,6 +90,15 @@ std::string find_cgroup_path(std::uint64_t cgroup_id) {
 }
 
 }  // namespace
+
+std::string exe_identity(std::string link_target) {
+    static constexpr std::string_view kDeleted = " (deleted)";
+    if (link_target.size() > kDeleted.size() &&
+        link_target.compare(link_target.size() - kDeleted.size(), kDeleted.size(),
+                            kDeleted) == 0)
+        link_target.resize(link_target.size() - kDeleted.size());
+    return link_target;
+}
 
 void Resolver::seed_from_proc() {
     std::error_code ec;

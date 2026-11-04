@@ -37,6 +37,10 @@ std::string address_of(const JsonValue& rr) {
     const JsonValue* type = key ? key->get("type") : nullptr;
     const JsonValue* addr = rr.get("address");
     if (!type || !addr || addr->type != JsonValue::Type::Array) return {};
+    // Range-checked before the cast: converting a double outside int's range
+    // (or NaN) to int is undefined behaviour, and the number came off a socket.
+    if (type->type != JsonValue::Type::Number || !(type->num >= 0 && type->num <= 65535))
+        return {};
 
     const int t = int(type->num);
     const std::size_t want = t == kTypeA ? 4 : t == kTypeAAAA ? 16 : 0;

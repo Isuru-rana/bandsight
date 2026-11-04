@@ -188,6 +188,26 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_traffic_type PRIVATE bandsight_core)
   add_test(NAME traffic_type COMMAND test_traffic_type)
 
+  add_executable(test_store tests/test_store.cpp)
+  target_link_libraries(test_store PRIVATE bandsight_core)
+  add_test(NAME store COMMAND test_store)
+
+  add_executable(test_identity tests/test_identity.cpp)
+  target_link_libraries(test_identity PRIVATE bandsight_core)
+  add_test(NAME identity COMMAND test_identity)
+
+  add_executable(test_parsers tests/test_parsers.cpp)
+  target_link_libraries(test_parsers PRIVATE bandsight_core)
+  add_test(NAME parsers COMMAND test_parsers)
+
+  add_executable(test_control tests/test_control.cpp)
+  target_link_libraries(test_control PRIVATE bandsight_core)
+  add_test(NAME control COMMAND test_control)
+
+  add_executable(test_time tests/test_time.cpp)
+  target_link_libraries(test_time PRIVATE bandsight_core)
+  add_test(NAME time COMMAND test_time)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)
@@ -200,6 +220,13 @@ if(BANDSIGHT_BUILD_TESTS)
     target_include_directories(test_service_names PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_service_names PRIVATE bandsight_core Qt6::Core)
     add_test(NAME service_names COMMAND test_service_names)
+
+    add_executable(test_gui_logic tests/test_gui_logic.cpp gui/history_store.cpp
+        gui/quota.cpp gui/frame_codec.cpp gui/host_class.cpp)
+    set_target_properties(test_gui_logic PROPERTIES AUTOMOC ON)
+    target_include_directories(test_gui_logic PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+    target_link_libraries(test_gui_logic PRIVATE bandsight_core Qt6::Core Qt6::Sql Qt6::Network)
+    add_test(NAME gui_logic COMMAND test_gui_logic)
 
     # The GUI's own sources minus main(), so the test drives the real widgets.
     get_target_property(_gui_sources bandsight SOURCES)

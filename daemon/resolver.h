@@ -6,6 +6,12 @@
 
 namespace bandsight {
 
+// A /proc/<pid>/exe link target as an application identity. The kernel
+// appends " (deleted)" once the file has been replaced or removed - which is
+// what a package upgrade does to every running program - and without this a
+// browser's processes started after its upgrade became a second application.
+std::string exe_identity(std::string link_target);
+
 // Maps kernel identifiers surfaced by the BPF collector (tgid, cgroup id) to
 // human-meaningful strings: an executable path and a cgroup path.
 //
