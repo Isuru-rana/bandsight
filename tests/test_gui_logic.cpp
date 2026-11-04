@@ -14,6 +14,7 @@
 #include "check.h"
 #include "frame_codec.h"
 #include "history_store.h"
+#include "json_frame.h"
 #include "host_class.h"
 #include "quota.h"
 #include "store.h"
@@ -121,6 +122,33 @@ void frames() {
         CHECK(s && s->ts == 1700000000 && s->ifaces.size() == 1 && s->ifaces[0].tx == 20);
         CHECK(!decode_hello((*out)[1]));   // the wrong type is refused
         CHECK(!decode_sample((*out)[0]));
+        // A hello from a daemon that predates the version field.
+        CHECK(h && h->version.isEmpty());
+    }
+
+    // The optional version field, as the daemon writes it and the GUI reads it.
+    {
+        const std::vector<HelloIface> ifs{{2, "eth0", "physical"}};
+        const std::string with = encode_hello("/var/lib/bandsight/bandsight.db", ifs, "0.4.0");
+        const std::string without = encode_hello("/var/lib/bandsight/bandsight.db", ifs);
+        CHECK(with.find("\"version\":\"0.4.0\"") != std::string::npos);
+        CHECK(without.find("version") == std::string::npos);   // absent, not ""
+        CHECK(with.find("\"ver\":1") != std::string::npos);    // protocol unchanged
+        const auto hv = decode_hello(QByteArray::fromStdString(with));
+        CHECK(hv && hv->version == QLatin1String("0.4.0"));
+        CHECK(hv && hv->db_path == QLatin1String("/var/lib/bandsight/bandsight.db"));
+        CHECK(hv && hv->ifaces.size() == 1 && hv->ifaces[0].name == QLatin1String("eth0"));
+        const auto hn = decode_hello(QByteArray::fromStdString(without));
+        CHECK(hn && hn->version.isEmpty() && hn->ifaces.size() == 1);
+        // Escaped like every other string in the frame.
+        const auto he = decode_hello(QByteArray::fromStdString(
+            encode_hello("/db", {}, "1.0 \"rc\"\\x")));
+        CHECK(he && he->version == QLatin1String("1.0 \"rc\"\\x"));
+        // A newer daemon's extra keys are ignored, and a version that is not a
+        // string reads as absent rather than refusing the frame.
+        const auto hx = decode_hello(R"({"t":"hello","ver":2,"version":7,"db":"/d",)"
+                                     R"("future":{"a":[1,2]},"ifaces":[]})");
+        CHECK(hx && hx->db_path == QLatin1String("/d") && hx->version.isEmpty());
     }
 
     // An implausible length is corruption, not an allocation.

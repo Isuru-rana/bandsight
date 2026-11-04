@@ -8,7 +8,8 @@
 namespace bandsight::gui {
 
 struct HelloIfaceInfo { int id = 0; QString name; QString kind; };
-struct HelloInfo { QString db_path; QVector<HelloIfaceInfo> ifaces; };
+// version: the daemon's release, empty when its hello predates the field.
+struct HelloInfo { QString db_path; QVector<HelloIfaceInfo> ifaces; QString version; };
 
 struct SampleIface { int id = 0; quint64 rx = 0; quint64 tx = 0; };
 struct SampleFrame { qint64 ts = 0; QVector<SampleIface> ifaces; };

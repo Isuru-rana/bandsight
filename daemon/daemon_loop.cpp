@@ -14,6 +14,7 @@
 
 #include "../bpf/ifindex_pick.h"
 #include "app_name.h"
+#include "build_info.h"
 #include "config_policy.h"
 #include "iface_class.h"
 #include "json_frame.h"
@@ -465,7 +466,7 @@ int run_daemon(const std::string& db_path, const std::string& socket_path) {
         } catch (const std::exception& e) {
             std::fprintf(stderr, "bandsightd: hello iface enumeration failed: %s\n", e.what());
         }
-        control.set_hello(frame(encode_hello(db_path, hello_ifaces)));
+        control.set_hello(frame(encode_hello(db_path, hello_ifaces, BANDSIGHT_VERSION)));
 
         std::fprintf(stderr, "bandsightd: started, db=%s\n", db_path.c_str());
 

@@ -42,8 +42,13 @@ std::string frame(std::string_view body) {
 }
 
 std::string encode_hello(const std::string& db_path,
-                         const std::vector<HelloIface>& ifaces) {
-    std::string s = "{\"t\":\"hello\",\"ver\":1,\"db\":\"";
+                         const std::vector<HelloIface>& ifaces,
+                         const std::string& version) {
+    // "ver" is the frame protocol, unchanged at 1: the version field is
+    // additive, so no reader has to know about it.
+    std::string s = "{\"t\":\"hello\",\"ver\":1,";
+    if (!version.empty()) s += "\"version\":\"" + escape_json(version) + "\",";
+    s += "\"db\":\"";
     s += escape_json(db_path);
     s += "\",\"ifaces\":[";
     for (std::size_t i = 0; i < ifaces.size(); ++i) {

@@ -31,8 +31,11 @@ std::string escape_json(std::string_view in);
 // 4-byte little-endian length prefix followed by body.
 std::string frame(std::string_view body);
 
+// version: the daemon's release ("0.4.0"). Optional for readers: a GUI that
+// predates the field ignores it, and an empty version is left out of the frame.
 std::string encode_hello(const std::string& db_path,
-                         const std::vector<HelloIface>& ifaces);
+                         const std::vector<HelloIface>& ifaces,
+                         const std::string& version = {});
 std::string encode_sample(std::int64_t ts, const std::vector<FrameIface>& ifaces,
                           const std::vector<FrameApp>& apps);
 std::string encode_pong();
