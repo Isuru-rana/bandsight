@@ -243,6 +243,13 @@ if(BANDSIGHT_BUILD_TESTS)
     target_link_libraries(test_gui_logic PRIVATE bandsight_core Qt6::Core Qt6::Sql Qt6::Network)
     add_test(NAME gui_logic COMMAND test_gui_logic)
 
+    # Every palette in the theme table against the contrast and colour-vision
+    # checks theme.h lists, so a theme that fails them cannot ship.
+    add_executable(test_theme tests/test_theme.cpp gui/theme.cpp)
+    target_include_directories(test_theme PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+    target_link_libraries(test_theme PRIVATE Qt6::Widgets)
+    add_test(NAME theme COMMAND test_theme)
+
     # The GUI's own sources minus main(), so the test drives the real widgets.
     get_target_property(_gui_sources bandsight SOURCES)
     list(REMOVE_ITEM _gui_sources gui/main.cpp)
@@ -253,7 +260,7 @@ if(BANDSIGHT_BUILD_TESTS)
     target_link_libraries(test_usage_tab PRIVATE
         Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
     add_test(NAME usage_tab COMMAND test_usage_tab)
-    set_tests_properties(usage_tab PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(usage_tab theme PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 endif()
 
