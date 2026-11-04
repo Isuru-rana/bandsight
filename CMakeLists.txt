@@ -204,6 +204,10 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_control PRIVATE bandsight_core)
   add_test(NAME control COMMAND test_control)
 
+  add_executable(test_time tests/test_time.cpp)
+  target_link_libraries(test_time PRIVATE bandsight_core)
+  add_test(NAME time COMMAND test_time)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)
