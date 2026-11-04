@@ -200,6 +200,10 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_parsers PRIVATE bandsight_core)
   add_test(NAME parsers COMMAND test_parsers)
 
+  add_executable(test_control tests/test_control.cpp)
+  target_link_libraries(test_control PRIVATE bandsight_core)
+  add_test(NAME control COMMAND test_control)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)
