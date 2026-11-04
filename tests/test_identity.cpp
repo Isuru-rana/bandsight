@@ -40,14 +40,17 @@ void running_program_after_upgrade() {
     if (!dir) return;
     const std::string exe = std::string(dir) + "/sleeper";
     std::error_code ec;
-    fs::copy_file("/bin/sleep", exe, ec);
+    // A copy of this test binary, not of /bin/sleep: a multi-call coreutils
+    // (uutils on Ubuntu 26.04, busybox) picks its tool from the file name and
+    // exits at once as "sleeper". Run with --sleep, this binary just waits.
+    fs::copy_file("/proc/self/exe", exe, ec);
     CHECK(!ec);
     if (ec) return;
     fs::permissions(exe, fs::perms::owner_all);
 
     const pid_t pid = ::fork();
     if (pid == 0) {
-        ::execl(exe.c_str(), exe.c_str(), "30", static_cast<char*>(nullptr));
+        ::execl(exe.c_str(), exe.c_str(), "--sleep", static_cast<char*>(nullptr));
         std::_Exit(127);
     }
     // Wait for the exec to have happened.
@@ -91,7 +94,12 @@ void app_names() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // The child of running_program_after_upgrade(): wait to be killed.
+    if (argc > 1 && std::string(argv[1]) == "--sleep") {
+        std::this_thread::sleep_for(std::chrono::seconds(30));
+        return 0;
+    }
     exe_identity_strips_deleted();
     running_program_after_upgrade();
     app_names();
