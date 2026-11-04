@@ -3,6 +3,16 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
+## [Unreleased]
+
+### Changed
+- bandsightd refuses a database path that is a symlink
+
+### Fixed
+- Group members could make bandsightd chmod or overwrite files via symlinks in its state directory
+- An app updated while running split into a second "(deleted)" app
+- Data cap counting one hour twice (or missing it) the day after a DST change
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
