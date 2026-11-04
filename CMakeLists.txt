@@ -196,6 +196,10 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_identity PRIVATE bandsight_core)
   add_test(NAME identity COMMAND test_identity)
 
+  add_executable(test_parsers tests/test_parsers.cpp)
+  target_link_libraries(test_parsers PRIVATE bandsight_core)
+  add_test(NAME parsers COMMAND test_parsers)
+
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
         gui/history_store.cpp gui/quota.cpp)
