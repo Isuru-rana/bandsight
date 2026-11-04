@@ -11,6 +11,7 @@
 #include <QSystemTrayIcon>
 #include <QWidget>
 
+#include "appearance.h"
 #include "units.h"
 
 namespace bandsight::gui {
@@ -40,6 +41,8 @@ TrayIcon::TrayIcon(QWidget* window, QObject* parent)
             [this](QSystemTrayIcon::ActivationReason r) {
                 if (r == QSystemTrayIcon::Trigger) toggleWindow();
             });
+
+    connect(&Appearance::instance(), &Appearance::changed, this, &TrayIcon::applyTooltip);
 
     icon_->show();
 }
@@ -99,9 +102,15 @@ void TrayIcon::onSample(const SampleFrame& f) {
     // Labelled rather than filtered: the tray outlives the window, and an
     // indicator that goes quiet because of a checkbox in a hidden window is a
     // worse failure than one that reads high.
+    rates_ = std::pair{rx, tx};
+    applyTooltip();
+}
+
+void TrayIcon::applyTooltip() {
+    if (!rates_) return;   // still the plain name: no frame yet
     icon_->setToolTip(tr("↓ %1  ↑ %2\nAll interfaces (the Graph tab shows only "
                          "the ones you have ticked)")
-                          .arg(format_rate(rx), format_rate(tx)));
+                          .arg(format_rate(rates_->first), format_rate(rates_->second)));
 }
 
 void TrayIcon::toggleWindow() {

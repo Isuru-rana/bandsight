@@ -103,6 +103,11 @@ public slots:
 
 private:
     void recomputeSplit();
+    // pairs_ -> the host list's rows. Separate from setHostPairs so a unit
+    // change can re-format the tooltips without counting as a reply.
+    void rebuildHostRows();
+    QSet<QString> hostKeys() const;
+    void applyInk();
 
     // The unfiltered split as last reported, so toggling can subtract from it
     // repeatedly without accumulating error.

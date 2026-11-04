@@ -6,6 +6,7 @@
 #include <QPointer>
 #include <QThread>
 
+#include "about.h"
 #include "frame_types.h"
 
 class QCloseEvent;
@@ -48,6 +49,8 @@ public:
     HistoryStore* historyStore() const { return history_; }
     LiveClient* liveClient() const { return live_; }
     TrayIcon* trayIcon() const { return tray_; }
+    SettingsDialog* settingsDialog() const;
+    void openSettings();
 
     // Test-only, same rationale as LiveClient::setRetryInterval: the close
     // behaviour branches on whether a system tray exists, and under the
@@ -66,7 +69,6 @@ private:
     void refreshFromHistory();        // totals, plus series when not on the ring
     void requestSeries(Window w, QSet<int> ifindexes, qint64 now);
     void applyVisible(QSet<int> v);
-    void openSettings();
 
     LiveClient* live_;
     QThread history_thread_;
@@ -87,6 +89,7 @@ private:
     QTimer* refresh_;
     TrayIcon* tray_;
     QString db_path_;
+    DaemonInfo daemon_;               // from the last hello, for About
     QSet<int> visible_;
     // The window the outstanding totals queries were issued for. Shared by the
     // interface and application tables: refreshFromHistory dispatches both in

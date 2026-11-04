@@ -2,6 +2,9 @@
 #pragma once
 #include <QObject>
 
+#include <optional>
+#include <utility>
+
 #include "frame_types.h"
 #include "quota.h"
 
@@ -51,6 +54,9 @@ private:
     QWidget* window_;
     QSystemTrayIcon* icon_;
     int cap_percent_ = -1;   // -1 = no cap configured
+    void applyTooltip();
+    // The last frame's sums, so a unit change re-words the tooltip at once.
+    std::optional<std::pair<quint64, quint64>> rates_;
 };
 
 }  // namespace bandsight::gui

@@ -11,6 +11,16 @@ add_compile_options(-Wall -Wextra -Werror)
 # GUI's About page, from project() above and never written anywhere else.
 configure_file(cmake/build_info.h.in ${CMAKE_BINARY_DIR}/generated/build_info.h @ONLY)
 
+# The commit hash changes without cmake re-running, so it is written at build
+# time instead (and only rewritten when it changes).
+add_custom_target(bandsight_git_commit
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/generated/git_commit.h
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DOUTPUT=${CMAKE_BINARY_DIR}/generated/git_commit.h
+            -P ${CMAKE_SOURCE_DIR}/cmake/GitCommit.cmake
+    COMMENT "Reading the git commit"
+    VERBATIM)
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 pkg_check_modules(LIBBPF REQUIRED IMPORTED_TARGET libbpf)
@@ -132,6 +142,8 @@ if(BANDSIGHT_BUILD_GUI)
       gui/tabs/iface_tab.cpp
       gui/tabs/usage_tab.cpp
       gui/theme.cpp
+      gui/appearance.cpp
+      gui/about.cpp
       gui/widgets/card.cpp
       gui/widgets/donut_chart.cpp
       gui/widgets/identity_chip.cpp
@@ -150,8 +162,10 @@ if(BANDSIGHT_BUILD_GUI)
       # only dependency is <ctime>. The test target gets them from bandsight_core.
       daemon/time_buckets.cpp
   )
-  target_include_directories(bandsight PRIVATE ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon)
+  target_include_directories(bandsight PRIVATE ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon
+                             ${CMAKE_BINARY_DIR}/generated)
   target_link_libraries(bandsight PRIVATE Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
+  add_dependencies(bandsight bandsight_git_commit)
   install(TARGETS bandsight RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
   # Exec must point wherever the binary actually lands, for the same reason the
@@ -250,17 +264,22 @@ if(BANDSIGHT_BUILD_TESTS)
     target_link_libraries(test_theme PRIVATE Qt6::Widgets)
     add_test(NAME theme COMMAND test_theme)
 
-    # The GUI's own sources minus main(), so the test drives the real widgets.
+    # The GUI's own sources minus main(), so the tests drive the real widgets.
     get_target_property(_gui_sources bandsight SOURCES)
     list(REMOVE_ITEM _gui_sources gui/main.cpp)
-    add_executable(test_usage_tab tests/test_usage_tab.cpp ${_gui_sources})
-    set_target_properties(test_usage_tab PROPERTIES AUTOMOC ON AUTORCC ON)
-    target_include_directories(test_usage_tab PRIVATE
-        ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon)
-    target_link_libraries(test_usage_tab PRIVATE
-        Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
-    add_test(NAME usage_tab COMMAND test_usage_tab)
-    set_tests_properties(usage_tab theme PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    foreach(_t usage_tab settings)
+      add_executable(test_${_t} tests/test_${_t}.cpp ${_gui_sources})
+      set_target_properties(test_${_t} PROPERTIES AUTOMOC ON AUTORCC ON)
+      target_include_directories(test_${_t} PRIVATE
+          ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon ${CMAKE_BINARY_DIR}/generated)
+      target_link_libraries(test_${_t} PRIVATE
+          Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
+      add_dependencies(test_${_t} bandsight_git_commit)
+      add_test(NAME ${_t} COMMAND test_${_t})
+    endforeach()
+    target_compile_definitions(test_settings PRIVATE
+        BANDSIGHT_TEST_PROJECT_VERSION="${PROJECT_VERSION}")
+    set_tests_properties(usage_tab settings theme PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 endif()
 
