@@ -7,6 +7,23 @@
 
 <p align="center"><b>See which apps use your bandwidth on Linux. Always on, kept forever, no packet capture.</b></p>
 
+<p align="center">
+  <a href="#what-it-is">What it is</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="#using-the-data-directly">Using the data</a> ·
+  <a href="#known-limitations">Known limitations</a> ·
+  <a href="#roadmap">Roadmap</a> ·
+  <a href="#contributing">Contributing</a>
+  <br>
+  <sub>Install on:
+  <a href="#debian--ubuntu-debian-12-ubuntu-2404">Debian / Ubuntu</a> ·
+  <a href="#fedora--opensuse">Fedora / openSUSE</a> ·
+  <a href="#arch-linux">Arch Linux</a></sub>
+</p>
+
 > [!WARNING]
 > **Bandsight is under active development (v0.5.x, pre-1.0).**
 > Tested on Ubuntu 26.04, kernel 7.0, KDE Plasma (Wayland), x86_64. Other distros,
