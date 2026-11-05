@@ -2,13 +2,13 @@ Origin: Bandsight
 Label: Bandsight
 Suite: stable
 Codename: stable
-Date: Thu, 05 Nov 2026 05:46:11 +0000
+Date: Thu, 05 Nov 2026 08:36:48 +0000
 Architectures: amd64
 Components: main
 Description: Bandsight network usage monitor
 MD5Sum:
- c18d9d6ed875aca75a2e7835edf07c46             3148 main/binary-amd64/Packages
- e133adc93f312f83ef5b38a1522fa8aa              866 main/binary-amd64/Packages.gz
+ 52075ef3a3eedbc35edb3863b0eeaf1a             3937 main/binary-amd64/Packages
+ fb29912641d308982a0b39eaef4def3b              982 main/binary-amd64/Packages.gz
 SHA256:
- 8caa9608d8e62f625909f03c0ce0666337f9a444a696a02a6bba7180b94dca87             3148 main/binary-amd64/Packages
- d0b7aa00d7806f695037dec99adb852f45f1b974a0d6e637467811e806ebcb2a              866 main/binary-amd64/Packages.gz
+ 1484945b05a52689fe05d8ace3a1c0bd67212726b77c6b32f2386520033fa603             3937 main/binary-amd64/Packages
+ 96a9ab38bec130c5dfa12be8cdd14a8ffc48a8844d88d8cd0cd768c4c8d8db7d              982 main/binary-amd64/Packages.gz
