@@ -109,7 +109,7 @@ function(bandsight_install_configured TEMPLATE NAME DEST)
   ")
 endfunction()
 
-install(TARGETS bandsightd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS bandsightd bandsight-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # ExecStart must point wherever the binary actually lands, so the unit is
 # generated from the install prefix rather than hardcoding /usr/bin. Installing
