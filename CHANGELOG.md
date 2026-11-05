@@ -3,7 +3,7 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
-## [Unreleased]
+## [0.5.0] - 2026-11-05
 
 ### Added
 - Settings button in the main window, and `Ctrl+,`
@@ -23,6 +23,7 @@ is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight
 - Bit rates shown as kb/s, Mb/s, Gb/s (was kbit/s, Mbit/s, Gbit/s)
 - Settings OK contacts bandsightd only when the cap or cycle day changed
 - Light theme upload colour one step darker, for 3:1 against the chart background
+- Release builds run the tests before packaging
 
 ### Fixed
 - A unit change left the data cap bar, Interfaces table, host tooltips and tray tooltip in the old unit until the next refresh
