@@ -12,12 +12,15 @@ is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight
 - About: GUI and daemon version, database path, Qt, build type, commit, "Copy details"
 - `bandsightd --version` and `--help`, `bandsight --version`
 - Optional `version` field in the hello frame
+- Traffic colours: Default, Blue / Orange, Teal / Magenta, Green / Purple, Blue / Yellow, Custom
+- Warning when a custom traffic colour is hard to see or hard to tell apart
 
 ### Changed
 - bandsightd refuses a database path that is a symlink
 - bandsightd exits with status 2 on an unknown option or a flag without a value
 - Unit and theme changes apply immediately; Cancel reverts them
 - Speed unit choices spelled out: Mb/s megabits, MB/s megabytes
+- Bit rates shown as kb/s, Mb/s, Gb/s (was kbit/s, Mbit/s, Gbit/s)
 - Settings OK contacts bandsightd only when the cap or cycle day changed
 - Light theme upload colour one step darker, for 3:1 against the chart background
 

@@ -79,6 +79,8 @@ time, that is what Bandsight is for.
 - Tray icon showing current rates; closing the window hides it to the tray
 - Themes: System (follows the desktop's light or dark mode), Light, Dark, High contrast,
   Sand and Slate, each checked for text contrast and colour-blind safe download/upload colours
+- Download/upload colour presets (including Blue / Yellow for red-green colour blindness)
+  or your own pair, with a warning if your pick is hard to see
 - Speed in Mb/s or MB/s and volume in GB or GiB, applied everywhere as soon as you pick them
 - Settings from the gear next to the tabs, `Ctrl+,` or the tray menu; About shows the GUI and
   daemon versions and copies them for bug reports
