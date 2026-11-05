@@ -31,6 +31,9 @@ std::optional<HelloInfo> decode_hello(const QByteArray& body) {
     if (!o.contains("db") || !o.contains("ifaces")) return std::nullopt;
     HelloInfo h;
     h.db_path = o.value("db").toString();
+    // Optional and additive: older daemons do not send it, and anything but
+    // a string is treated as absent rather than refusing the frame.
+    h.version = o.value("version").toString();
     for (const auto& v : o.value("ifaces").toArray()) {
         const QJsonObject i = v.toObject();
         h.ifaces.push_back({i.value("id").toInt(),

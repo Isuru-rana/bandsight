@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QProgressBar>
 
+#include "appearance.h"
 #include "units.h"
 
 namespace bandsight::gui {
@@ -33,6 +34,10 @@ QuotaBar::QuotaBar(QWidget* parent)
     box->addWidget(label_);
 
     setQuota({});
+    // The label is formatted once per reply; a unit change re-formats it now
+    // rather than at the next ten-second refresh.
+    connect(&Appearance::instance(), &Appearance::changed, this,
+            [this] { setQuota(info_); });
 }
 
 QString QuotaBar::text() const { return label_->text(); }

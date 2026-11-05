@@ -26,7 +26,9 @@ public:
     static constexpr int SortRole = Qt::UserRole + 1;
     static constexpr int MeasuredRole = Qt::UserRole + 2;
 
-    explicit IfaceModel(QObject* parent = nullptr) : QAbstractTableModel(parent) {}
+    // The byte cells are formatted in data(), so a unit change needs only a
+    // dataChanged over them for every view to re-read.
+    explicit IfaceModel(QObject* parent = nullptr);
 
     void setTotals(const QVector<IfaceTotal>& totals);   // full reset
 

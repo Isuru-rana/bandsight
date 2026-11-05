@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "main_window.h"
 
+#include <QAction>
 #include <QCloseEvent>
-#include <QSettings>
 #include <QDateTime>
 #include <QDebug>
 #include <QLabel>
 #include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
+#include <QPainter>
+#include <QPainterPath>
+#include <QtMath>
 
+#include "appearance.h"
 #include "failure.h"
 #include "history_store.h"
 #include "live_client.h"
@@ -56,6 +61,42 @@ constexpr int kBannerPollMs = 1'000;   // see the poll's own note in the ctor
 // (spec §6.2) - so after this long, open the default path anyway.
 constexpr int kOpenFallbackMs = 3'000;
 
+// A gear, drawn rather than taken from the icon theme: no freedesktop name is
+// in every theme (B12), and a theme's icon is drawn for the desktop's palette,
+// not for a named Bandsight theme. Redrawn in the theme's ink on every change.
+QIcon gear_icon(const QColor& ink) {
+    QIcon icon;
+    for (int side : {16, 22, 32, 48}) {
+        QPixmap pm(side, side);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.translate(side / 2.0, side / 2.0);
+        p.scale(side / 24.0, side / 24.0);
+        QPainterPath gear;
+        constexpr int kTeeth = 8;
+        const auto at = [](double r, double deg) {
+            return QPointF(r * std::cos(qDegreesToRadians(deg)),
+                           r * std::sin(qDegreesToRadians(deg)));
+        };
+        // Each tooth a flat-topped trapezoid, joined root to root.
+        for (int k = 0; k < kTeeth; ++k) {
+            const double c = k * 360.0 / kTeeth;
+            if (k == 0) gear.moveTo(at(7.6, c - 15));
+            else gear.lineTo(at(7.6, c - 15));
+            gear.lineTo(at(10.8, c - 8));
+            gear.lineTo(at(10.8, c + 8));
+            gear.lineTo(at(7.6, c + 15));
+        }
+        gear.closeSubpath();
+        gear.addEllipse(QPointF(0, 0), 3.4, 3.4);   // the hole, by odd-even fill
+        p.fillPath(gear, ink);
+        p.end();
+        icon.addPixmap(pm);
+    }
+    return icon;
+}
+
 }  // namespace
 
 MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
@@ -91,6 +132,27 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     tabs->addTab(usage_, tr("Usage"));
     tabs->addTab(ifaces_, tr("Interfaces"));
 
+    // Settings from the window itself, not only from the tray: a desktop with
+    // no tray (GNOME without an extension) otherwise had no way to reach it.
+    auto* gear = new QToolButton(tabs);
+    gear->setObjectName(QStringLiteral("settingsButton"));   // findChild, for tests
+    gear->setToolTip(tr("Settings"));
+    gear->setAccessibleName(tr("Settings"));
+    gear->setAutoRaise(true);
+    gear->setIconSize(QSize(18, 18));
+    const auto paint_gear = [gear] { gear->setIcon(gear_icon(theme().ink_muted)); };
+    paint_gear();
+    connect(&Appearance::instance(), &Appearance::changed, gear, paint_gear);
+    connect(gear, &QToolButton::clicked, this, &MainWindow::openSettings);
+    tabs->setCornerWidget(gear, Qt::TopRightCorner);
+
+    auto* settings_action = new QAction(tr("Settings"), this);
+    settings_action->setObjectName(QStringLiteral("settingsAction"));
+    settings_action->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Comma));
+    settings_action->setShortcutContext(Qt::WindowShortcut);
+    connect(settings_action, &QAction::triggered, this, &MainWindow::openSettings);
+    addAction(settings_action);
+
     auto* central = new QWidget;
     auto* box = new QVBoxLayout(central);
     box->addWidget(banner_);
@@ -112,7 +174,11 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
     connect(live_, &LiveClient::sample, graph_, &GraphTab::onSample);
     connect(live_, &LiveClient::sample, tray_, &TrayIcon::onSample);
     connect(live_, &LiveClient::stateChanged, this, [this](LiveClient::State s) {
-        if (s == LiveClient::State::Disconnected) graph_->onDisconnected();
+        if (s == LiveClient::State::Disconnected) {
+            graph_->onDisconnected();
+            daemon_.connected = false;
+            if (settings_) settings_->setDaemonInfo(daemon_);
+        }
         updateBanner();
     });
 
@@ -230,15 +296,9 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
                 if (ok) refreshFromHistory();
             });
 
-    // Units are this user's preference, not the machine's: they live in
-    // QSettings, and must be restored before the first frame is formatted.
-    {
-        QSettings s;
-        set_rate_unit(RateUnit(s.value(QStringLiteral("units/rate"),
-                                       int(RateUnit::Bits)).toInt()));
-        set_volume_unit(VolumeUnit(s.value(QStringLiteral("units/volume"),
-                                           int(VolumeUnit::Decimal)).toInt()));
-    }
+    // Units and theme are this user's preference, not the machine's: they live
+    // in QSettings, and must be restored before the first frame is formatted.
+    Appearance::instance().load();
 
     connect(graph_, &GraphTab::seriesNeeded, this, &MainWindow::requestSeries);
 
@@ -321,6 +381,8 @@ void MainWindow::closeEvent(QCloseEvent* e) {
     e->ignore();
 }
 
+SettingsDialog* MainWindow::settingsDialog() const { return settings_; }
+
 QString MainWindow::bannerText() const {
     return banner_->isHidden() ? QString() : banner_->text();
 }
@@ -365,6 +427,8 @@ void MainWindow::updateBanner() {
 }
 
 void MainWindow::onHello(const HelloInfo& h) {
+    daemon_ = {true, h.version, h.db_path};
+    if (settings_) settings_->setDaemonInfo(daemon_);
     if (!h.db_path.isEmpty() && h.db_path != db_path_) {
         db_path_ = h.db_path;     // the daemon knows better than the default
         open_requested_ = false;  // whatever we may have opened was the wrong file
@@ -448,11 +512,14 @@ void MainWindow::requestSeries(Window w, QSet<int> ifindexes, qint64 now) {
 void MainWindow::openSettings() {
     if (settings_) { settings_->raise(); settings_->activateWindow(); return; }
 
-    auto* d = new SettingsDialog(quota_->info(), this);
+    auto* d = new SettingsDialog(quota_->info(), daemon_, this);
     d->setAttribute(Qt::WA_DeleteOnClose);
     settings_ = d;
     connect(d, &QDialog::accepted, this, [this, d] {
         d->applyLocal();
+        // A dialog opened to change the theme has nothing to tell the daemon,
+        // and must not fail with "not running" for a write it never needed.
+        if (!d->daemonSettingsChanged()) return;
         // Refuse silently-lost writes: with the daemon down there is nothing to
         // store the cap, and pretending otherwise would show a cap the next
         // start would not remember.
@@ -467,9 +534,6 @@ void MainWindow::openSettings() {
         // The confirmation arrives on configResult - or does not, if the daemon
         // is too old to know the command, which is what the timeout is for.
         config_reply_timeout_->start();
-        // The graph and tables repaint immediately for the unit change either way.
-        graph_->update();
-        update();
     });
     d->show();
 }

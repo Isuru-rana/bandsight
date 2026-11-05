@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "app_labels.h"
+#include "appearance.h"
 #include "host_class.h"
 #include "service_names.h"
 #include "theme.h"
@@ -63,7 +64,6 @@ UsageTab::UsageTab(QWidget* parent)
     hosts_note_->setObjectName(QStringLiteral("hostsNote"));   // findChild, for tests
     hosts_note_->setWordWrap(true);
     hosts_note_->setAlignment(Qt::AlignCenter);
-    hosts_note_->setStyleSheet(QStringLiteral("color:%1;").arg(theme().ink_muted.name()));
     hosts_note_->hide();
 
     auto* hosts_body = new QWidget;
@@ -85,7 +85,6 @@ UsageTab::UsageTab(QWidget* parent)
     traffic_note_->setObjectName(QStringLiteral("trafficNote"));   // findChild, for tests
     traffic_note_->setWordWrap(true);
     traffic_note_->setAlignment(Qt::AlignCenter);
-    traffic_note_->setStyleSheet(QStringLiteral("color:%1;").arg(theme().ink_muted.name()));
     traffic_note_->hide();
 
     auto* traffic_body = new QWidget;
@@ -145,6 +144,20 @@ UsageTab::UsageTab(QWidget* parent)
     box->addLayout(header);
     box->addLayout(columns, 1);
     box->addWidget(timeline_card);
+
+    applyInk();
+    // The notes' colour is a style sheet and the host tooltips hold formatted
+    // volumes: both are strings made from a preference, so both are remade.
+    connect(&Appearance::instance(), &Appearance::changed, this, [this] {
+        applyInk();
+        rebuildHostRows();
+    });
+}
+
+void UsageTab::applyInk() {
+    const QString muted = QStringLiteral("color:%1;").arg(theme().ink_muted.name());
+    hosts_note_->setStyleSheet(muted);
+    traffic_note_->setStyleSheet(muted);
 }
 
 void UsageTab::toggleExcluded(const QString& exe) {
@@ -182,7 +195,28 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
     hosts_collected_ = collected;
     hosts_since_ = since;
     awaiting_hosts_ = qMax(0, awaiting_hosts_ - 1);
+    rebuildHostRows();
 
+    // Same rule as apps: a host that left the period cannot be clicked back, so
+    // it must not keep filtering the total invisibly.
+    const QSet<QString> keys = hostKeys();
+    QSet<QString> pruned;
+    for (const QString& k : hosts_list_->excluded())
+        if (keys.contains(k)) pruned.insert(k);
+    if (pruned.size() != hosts_list_->excluded().size()) hosts_list_->setExcluded(pruned);
+
+    updateHostsNote();
+    updateUnattributed();
+    recomputeSplit();
+}
+
+QSet<QString> UsageTab::hostKeys() const {
+    QSet<QString> keys;
+    for (const AppHostTotal& p : pairs_) keys.insert(host_key(p.ip));
+    return keys;
+}
+
+void UsageTab::rebuildHostRows() {
     // Pairs -> one row per host. The pairs are kept: they are what lets an app
     // and a host exclusion subtract shared bytes once (recomputeSplit).
     struct Acc {
@@ -191,7 +225,7 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
         QVector<QPair<quint64, QString>> apps;
     };
     QHash<QString, Acc> by_key;
-    for (const AppHostTotal& p : pairs) {
+    for (const AppHostTotal& p : pairs_) {
         Acc& a = by_key[host_key(p.ip)];
         a.ip = p.ip;
         a.hostname = p.hostname;
@@ -225,17 +259,6 @@ void UsageTab::setHostPairs(const QVector<AppHostTotal>& pairs, bool collected,
         return x.value > y.value;
     });
     hosts_list_->setRows(rows);
-
-    // Same rule as apps: a host that left the period cannot be clicked back, so
-    // it must not keep filtering the total invisibly.
-    QSet<QString> pruned;
-    for (const QString& k : hosts_list_->excluded())
-        if (by_key.contains(k)) pruned.insert(k);
-    if (pruned.size() != hosts_list_->excluded().size()) hosts_list_->setExcluded(pruned);
-
-    updateHostsNote();
-    updateUnattributed();
-    recomputeSplit();
 }
 
 void UsageTab::setTypeTotals(const QVector<TypeTotal>& totals, bool collected,

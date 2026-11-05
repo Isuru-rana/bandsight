@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QStyle>
 
+#include "appearance.h"
 #include "units.h"
 
 namespace bandsight::gui {
@@ -52,6 +53,13 @@ const QString kWhyExcluded = QStringLiteral(
     "Tunnel and loopback bytes are excluded because they are also counted "
     "on the physical interface underneath.");
 }  // namespace
+
+IfaceModel::IfaceModel(QObject* parent) : QAbstractTableModel(parent) {
+    connect(&Appearance::instance(), &Appearance::changed, this, [this] {
+        if (rows_.isEmpty()) return;
+        emit dataChanged(index(0, Rx), index(int(rows_.size()) - 1, Tx));
+    });
+}
 
 void IfaceModel::setTotals(const QVector<IfaceTotal>& totals) {
     beginResetModel();

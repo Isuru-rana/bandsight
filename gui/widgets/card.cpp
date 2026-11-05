@@ -7,6 +7,7 @@
 #include <QPainterPath>
 #include <QVBoxLayout>
 
+#include "appearance.h"
 #include "theme.h"
 
 namespace bandsight::gui {
@@ -25,6 +26,10 @@ Card::Card(const QString& title, QWidget* parent)
     body_->setContentsMargins(0, 0, 0, 0);
     outer->addLayout(body_, 1);
     applyInk();
+    // A named theme also arrives as PaletteChange, but a switch between two
+    // themes that share a window colour would not - and System to Light on a
+    // light desktop changes nothing the palette compares.
+    connect(&Appearance::instance(), &Appearance::changed, this, &Card::applyInk);
 }
 
 QString Card::title() const { return title_->text(); }

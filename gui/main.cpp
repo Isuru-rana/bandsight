@@ -5,10 +5,28 @@
 #include <QSqlDatabase>
 #include <QStandardPaths>
 
+#include <cstdio>
+#include <cstring>
+
+#include "build_info.h"
 #include "main_window.h"
 #include "single_instance.h"
 
 int main(int argc, char* argv[]) {
+    // Before QApplication: answering --version must not need a display, and
+    // must not hand over to (or become) the running instance.
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--version") == 0) {
+            std::printf("bandsight %s\n", BANDSIGHT_VERSION);
+            return 0;
+        }
+        if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
+            std::printf("Usage: bandsight [--version] [--help] [Qt options]\n"
+                        "Network usage viewer for bandsightd.\n");
+            return 0;
+        }
+    }
+
     QApplication app(argc, argv);
     app.setApplicationName("bandsight");
     // Wayland takes the window icon from the desktop entry matching the app id,
