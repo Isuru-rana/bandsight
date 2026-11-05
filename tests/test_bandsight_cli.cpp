@@ -771,8 +771,10 @@ void top_checks(const std::string& db) {
         CHECK(t.restored());
     }
     {
-        // A missing database: said on screen, and q still works.
-        PtyChild t({"--db", g_tmp + "/missing.db", "--socket", g_tmp + "/none"});
+        // A missing database: said on screen, and q still works. Wide, so the
+        // message (which carries the temp path, longer with a 7-digit pid)
+        // stays on one line for wait_for().
+        PtyChild t({"--db", g_tmp + "/missing.db", "--socket", g_tmp + "/none"}, {}, 200, 24);
         CHECK(t.wait_for("the file does not exist"));
         t.type("q");
         CHECK(t.wait_exit() == 0);
