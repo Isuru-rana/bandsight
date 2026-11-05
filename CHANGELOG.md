@@ -14,6 +14,15 @@ is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight
 - Colour and bars on a terminal only; `NO_COLOR` honoured
 - Exit codes: 0 ok, 1 runtime error, 2 usage error
 - Shared Qt-free query library (`core/`) used by the GUI and the CLI
+- `bandsight-cli top`: full-screen live view, no new dependencies
+- `top` header: daemon status and version, live rates, cycle used/cap/projection
+- `top` sparkline of the last 60 s, unicode with an ASCII fallback (`--ascii`)
+- `top` panels: Applications, Hosts, Traffic types with bars and Unattributed rows
+- `top` keys: `1`/`2`/`3`/`Tab` focus, `p` period, `b` Mb/s or MB/s, arrows or `j`/`k` scroll, `q` quit
+- `top` refresh: live rates every second (read only), history every 5 seconds
+- `top` keeps showing history while the daemon is down, and reconnects
+- `top` redraws on resize and restores the terminal on every exit
+- `top` exits 2 when not on a terminal; `NO_COLOR` honoured
 
 ### Changed
 - GUI history queries run on the shared library; same SQL, same results

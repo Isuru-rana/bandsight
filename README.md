@@ -195,8 +195,8 @@ machine, so add users accordingly.
 
 `bandsight-cli` shows the same history as the GUI in a terminal, for servers and SSH
 sessions. It is installed with the daemon and needs no Qt or desktop. History
-commands read the database, so they work while `bandsightd` is stopped. `live`
-and `status` only read from the daemon's socket and never send it anything.
+commands read the database, so they work while `bandsightd` is stopped. `live`,
+`status` and `top` only read from the daemon's socket and never send it anything.
 
 Like the GUI, it needs the `bandsight` group (see [After installing](#after-installing-all-distros)).
 
@@ -208,6 +208,7 @@ Like the GUI, it needs the `bandsight` group (see [After installing](#after-inst
 | `bandsight-cli types [--period P]` | per kind of traffic (HTTPS, QUIC, DNS, SSH, …) |
 | `bandsight-cli ifaces [--period P] [--all]` | per interface (`--all` adds loopback, VPN and virtual ones) |
 | `bandsight-cli live [--interval S] [--count N]` | current rates until Ctrl-C |
+| `bandsight-cli top [--period P] [--ascii]` | a full-screen live view: rates, the last 60 s, the cycle, apps, hosts and traffic types |
 
 Periods: `5m 30m 1h 6h 12h 24h 7d 30d` (the GUI's windows; default `24h`), `cycle`
 (the billing cycle so far), or `--from T [--to T]` in local time
@@ -260,6 +261,58 @@ $ bandsight-cli live --count 3
 12:00:22  down   11.0 Mb/s  up  250.0 kb/s
 12:00:23  down   12.0 Mb/s  up  254.0 kb/s
 ```
+
+### Live view: `top`
+
+`bandsight-cli top` is a full-screen view in the style of `htop`, for an SSH session
+or a spare terminal. The header shows whether `bandsightd` is running and its
+version, the current download and upload rate, and the billing cycle (used, cap and
+projection). Below it, the last 60 seconds as a sparkline, then three panels for the
+selected period: Applications, Hosts and Traffic types, each with down/up bars and,
+for apps and hosts, an Unattributed row like the GUI's.
+
+```text
+Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30
+Now     down  156.8 Mb/s   up  128.0 kb/s
+Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026
+
+Last 60 s
+down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s
+up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s
+
+▶ 1 Applications  last 24 hours                                        1-3 of 9
+ APPLICATION                   DOWN         UP
+ Firefox                   656.5 MB    13.3 MB  █████████████████████████████░
+ node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░
+ ssh                        15.2 MB    93.8 MB  █░░░░
+  2 Hosts  last 24 hours                                               1-3 of 9
+ HOST                          DOWN         UP
+ one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░
+ registry.npmjs.org        213.3 MB     4.3 MB  ██████████░
+ 192.168.1.10               15.2 MB    93.8 MB  █░░░░
+  3 Traffic types  last 24 hours                                       1-3 of 5
+ SERVICE                       DOWN         UP
+ QUIC                      644.5 MB    12.7 MB  █████████████████████████████░
+ HTTPS                     336.6 MB     6.5 MB  ███████████████░
+ SSH                        15.2 MB    93.8 MB  █░░░░
+ 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit
+```
+
+| Key | Does |
+| --- | --- |
+| `1` `2` `3`, `Tab` | focus Applications, Hosts or Traffic types |
+| `p` (`P` back) | next period: `5m 1h 24h 7d 30d cycle` |
+| `b` | rates in Mb/s or MB/s |
+| `↑` `↓`, `j` `k` | scroll the focused panel (also PgUp/PgDn, Home/End, `g`/`G`) |
+| `q`, `Ctrl-C` | quit |
+
+Live rates are read from the daemon's socket every second; like `live`, `top` only
+reads and never sends the daemon anything. The panels are read from the database
+every 5 seconds, so they keep working while `bandsightd` is stopped (the header then
+says so, and `top` reconnects when the daemon is back). It needs a terminal: from a
+script it exits with status 2 (use `status --json` or `live --json` there). Colour is
+off with `NO_COLOR`; unicode blocks fall back to ASCII outside a UTF-8 locale or with
+`--ascii`. `--period`, `--bytes`, `--binary`, `--db` and `--socket` set where it starts.
 
 ### JSON
 
