@@ -15,7 +15,7 @@
 > The Connections tab is not implemented yet.
 
 <p align="center">
-  <img src="docs/screenshots/graph.png" alt="Bandsight Graph tab: download and upload over 6 hours with totals" width="820">
+  <img src="docs/screenshots/graph.png" alt="Bandsight Graph tab: download and upload over the last 5 minutes with totals" width="820">
   <br><sub>Graph tab: live and historical traffic, 9 time windows, totals and per-interface split.</sub>
 </p>
 
@@ -89,13 +89,20 @@ time, that is what Bandsight is for.
 
 ## Screenshots
 
-**Usage:** total with download/upload split, apps ranked by usage, timeline of the selected period. (Screenshot predates the Hosts column.)
+**Usage:** total with download/upload split, apps, hosts and traffic types ranked by usage, timeline of the selected period. Whatever the apps do not account for shows as Unattributed.
 
 <img src="docs/screenshots/usage.png" alt="Usage tab" width="820">
 
 **Interfaces:** per-interface totals; checkboxes filter the graph. Loopback, VPN and virtual interfaces are hidden by default because their traffic is already counted on the physical interface.
 
 <img src="docs/screenshots/interfaces.png" alt="Interfaces tab" width="820">
+
+**Settings:** units, theme and download/upload colours apply as soon as you pick them. About shows the GUI and daemon versions.
+
+<p>
+  <img src="docs/screenshots/settings.png" alt="Settings, Display section: speed and volume units, theme, traffic colours" width="400">
+  <img src="docs/screenshots/about.png" alt="Settings, About section: GUI and daemon versions, database path, Qt version" width="400">
+</p>
 
 ## Requirements
 
@@ -251,8 +258,9 @@ for example `{"cmd":"ping"}`.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please include your distro, kernel version
-(`uname -r`) and `journalctl -u bandsightd -b` output with bug reports.
+Issues and pull requests are welcome. With bug reports, please include your distro,
+the versions from **Settings > About > Copy details** (or `bandsightd --version`), and
+`journalctl -u bandsightd -b` output.
 
 ## Licence
 
