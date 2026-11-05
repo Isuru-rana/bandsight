@@ -36,6 +36,8 @@ add_library(bandsight_common STATIC
     core/unattributed.cpp
     core/host_zone.cpp
     core/app_labels.cpp
+    core/history_db.cpp
+    core/frames.cpp
     daemon/time_buckets.cpp
     daemon/json_value.cpp
 )
@@ -239,6 +241,12 @@ if(BANDSIGHT_BUILD_TESTS)
   add_executable(test_time tests/test_time.cpp)
   target_link_libraries(test_time PRIVATE bandsight_core)
   add_test(NAME time COMMAND test_time)
+
+  # The shared history reader, no Qt, against a database the daemon's own
+  # Store and rollup wrote (tests/fixture_db.h).
+  add_executable(test_history_db tests/test_history_db.cpp)
+  target_link_libraries(test_history_db PRIVATE bandsight_core)
+  add_test(NAME history_db COMMAND test_history_db)
 
   # Runs the real bandsightd binary: --version and --help must exit before
   # anything is opened, and a bad flag must not start the daemon.
