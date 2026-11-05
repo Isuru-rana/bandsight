@@ -130,7 +130,7 @@ void open_failures(const std::string& dir) {
     // since root reads anything.
     const std::string locked = dir + "/locked.db";
     fixture::write(locked);
-    ::chmod(locked.c_str(), 0600);
+    ::chmod(locked.c_str(), 0000);   // 0600 is still readable by its owner
     const pid_t pid = ::fork();
     if (pid == 0) {
         if (::geteuid() == 0 &&

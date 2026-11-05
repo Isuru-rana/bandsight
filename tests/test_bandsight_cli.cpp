@@ -641,7 +641,7 @@ int main(int argc, char** argv) {
     golden("not a database", {"ifaces", "--db", junk}, 1);
     const std::string locked = g_tmp + "/locked.db";
     std::filesystem::copy_file(db, locked);
-    ::chmod(locked.c_str(), 0600);
+    ::chmod(locked.c_str(), 0000);   // 0600 is still readable by its owner
     if (::geteuid() == 0 || ::access(locked.c_str(), R_OK) != 0)
         golden("unreadable database", {"status", "--db", locked, "--socket", g_tmp + "/none"}, 1, true);
 
