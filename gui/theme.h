@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QPalette>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QtGlobal>
 
@@ -102,8 +103,9 @@ Theme theme_palette(ThemeId id);
 void set_current_theme(ThemeId id);
 ThemeId current_theme();
 
-// The active palette. Chosen each time it is asked, so following the desktop
-// into dark mode under System needs no restart and no signal.
+// The active palette, with the traffic colour choice applied. Chosen each time
+// it is asked, so following the desktop into dark mode under System needs no
+// restart and no signal.
 Theme theme();
 
 // Is the active theme dark. Under System, read from the desktop palette.
@@ -111,5 +113,47 @@ bool dark_mode();
 
 // The Qt palette a named theme installs for native widgets.
 QPalette qt_palette(const Theme& t);
+
+// --- Traffic colours ----------------------------------------------------------
+// The download/upload pair, chosen apart from the theme. Whatever is chosen
+// still lands in Theme::download and Theme::upload - the categorical slots 1
+// and 2 every widget already draws from - so no widget knows this exists.
+//
+// Each preset is two validated pairs: a step for light surfaces and a step for
+// dark ones, picked by the active theme's darkness, the same way theme.h picks
+// a theme's own pair. tests/test_theme.cpp holds every preset against every
+// theme: each colour >= 3:1 on card and plot_bg, and the pair >= ΔE 15 for
+// normal vision, protan and deutan. Custom colours are the user's and are not
+// checked here; the settings dialog warns about them instead.
+enum class TrafficColours { Theme, BlueOrange, TealMagenta, GreenPurple, BlueYellow, Custom };
+
+struct TrafficPair {
+    QColor download;
+    QColor upload;
+};
+
+// Menu order: Theme first, Custom last.
+const QVector<TrafficColours>& all_traffic_colours();
+QString traffic_key(TrafficColours c);   // stored in QSettings; never translated
+std::optional<TrafficColours> traffic_from_key(const QString& key);
+QString traffic_name(TrafficColours c);
+
+// A preset's pair for a light or dark surface. Theme and Custom have no fixed
+// pair and return nullopt.
+std::optional<TrafficPair> traffic_preset(TrafficColours c, bool dark);
+
+// The process-wide choice; Appearance changes it. custom is used only for
+// Custom, and is kept while another choice is active so switching back finds it.
+void set_traffic_colours(TrafficColours c, const TrafficPair& custom);
+TrafficColours current_traffic_colours();
+TrafficPair custom_traffic_colours();
+
+// t with its download/upload replaced by the choice. Theme leaves t alone.
+Theme with_traffic(Theme t, TrafficColours c, const TrafficPair& custom);
+
+// Plain-words problems with a download/upload pair on a theme: either colour
+// under 3:1 against the plot background or the card, or the pair under ΔE 15
+// for normal vision or for red-green colour blindness. Empty when it is fine.
+QStringList traffic_warnings(const Theme& t, const TrafficPair& pair);
 
 }  // namespace bandsight::gui

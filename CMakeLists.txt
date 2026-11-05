@@ -142,6 +142,7 @@ if(BANDSIGHT_BUILD_GUI)
       gui/tabs/iface_tab.cpp
       gui/tabs/usage_tab.cpp
       gui/theme.cpp
+      gui/colour_checks.cpp
       gui/appearance.cpp
       gui/about.cpp
       gui/widgets/card.cpp
@@ -259,7 +260,7 @@ if(BANDSIGHT_BUILD_TESTS)
 
     # Every palette in the theme table against the contrast and colour-vision
     # checks theme.h lists, so a theme that fails them cannot ship.
-    add_executable(test_theme tests/test_theme.cpp gui/theme.cpp)
+    add_executable(test_theme tests/test_theme.cpp gui/theme.cpp gui/colour_checks.cpp)
     target_include_directories(test_theme PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_theme PRIVATE Qt6::Widgets)
     add_test(NAME theme COMMAND test_theme)

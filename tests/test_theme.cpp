@@ -6,77 +6,22 @@
 #include <QPalette>
 #include <QSet>
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdio>
 
 #include "check.h"
+#include "colour_checks.h"
 #include "theme.h"
 
 using namespace bandsight::gui;
 
 namespace {
 
-// --- WCAG 2.x contrast ratio -------------------------------------------------
-double linear(double c8) {
-    const double c = c8 / 255.0;
-    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
-}
-double encode(double v) {
-    v = std::clamp(v, 0.0, 1.0);
-    return 255.0 * (v <= 0.0031308 ? 12.92 * v : 1.055 * std::pow(v, 1 / 2.4) - 0.055);
-}
-double luminance(const QColor& c) {
-    return 0.2126 * linear(c.red()) + 0.7152 * linear(c.green()) + 0.0722 * linear(c.blue());
-}
-double contrast(const QColor& a, const QColor& b) {
-    const double la = luminance(a), lb = luminance(b);
-    return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
-}
-
-// --- Colour vision deficiency ------------------------------------------------
-// Machado, Oliveira & Fernandes (2009), severity 1.0, applied to linear RGB.
-using Mat = std::array<std::array<double, 3>, 3>;
-constexpr Mat kProtan{{{0.152286, 1.052583, -0.204868},
-                       {0.114503, 0.786281, 0.099216},
-                       {-0.003882, -0.048116, 1.051998}}};
-constexpr Mat kDeutan{{{0.367322, 0.860646, -0.227968},
-                       {0.280085, 0.672501, 0.047413},
-                       {-0.011820, 0.042940, 0.968881}}};
-constexpr Mat kTritan{{{1.255528, -0.076749, -0.178779},
-                       {-0.078411, 0.930809, 0.147602},
-                       {0.004733, 0.691367, 0.303900}}};
-
-std::array<double, 3> simulate(const QColor& c, const Mat* m) {
-    const std::array<double, 3> v{linear(c.red()), linear(c.green()), linear(c.blue())};
-    if (!m) return {double(c.red()), double(c.green()), double(c.blue())};
-    std::array<double, 3> out{};
-    for (int i = 0; i < 3; ++i)
-        out[i] = encode((*m)[i][0] * v[0] + (*m)[i][1] * v[1] + (*m)[i][2] * v[2]);
-    return out;
-}
-
-// OKLab, from 8-bit sRGB. ΔE is the Euclidean distance x100, which puts it on
-// the same scale as the figures quoted in theme.h.
-std::array<double, 3> oklab(const std::array<double, 3>& rgb8) {
-    const double r = linear(rgb8[0]), g = linear(rgb8[1]), b = linear(rgb8[2]);
-    const double l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-    const double m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-    const double s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-    return {0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
-}
-double delta_e(const QColor& a, const QColor& b, const Mat* m) {
-    const auto x = oklab(simulate(a, m)), y = oklab(simulate(b, m));
-    return 100.0 * std::sqrt((x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1]) +
-                             (x[2] - y[2]) * (x[2] - y[2]));
-}
+double contrast(const QColor& a, const QColor& b) { return contrast_ratio(a, b); }
 
 // Prints every measured pair, so the table in the PR comes from this run.
 void need(const char* theme, const char* what, double got, double floor) {
-    std::printf("  %-14s %-30s %6.2f  (>= %.1f)%s\n", theme, what, got, floor,
+    std::printf("  %-28s %-30s %6.2f  (>= %.1f)%s\n", theme, what, got, floor,
                 got >= floor ? "" : "  FAIL");
     CHECK(got >= floor);
 }
@@ -110,10 +55,10 @@ void check_theme(ThemeId id) {
     need(n, "link / surface", contrast(t.link, t.surface), 4.5);
 
     // Download vs upload, for normal vision and each simulated deficiency.
-    need(n, "dE download/upload normal", delta_e(t.download, t.upload, nullptr), 15);
-    need(n, "dE download/upload protan", delta_e(t.download, t.upload, &kProtan), 15);
-    need(n, "dE download/upload deutan", delta_e(t.download, t.upload, &kDeutan), 15);
-    need(n, "dE download/upload tritan", delta_e(t.download, t.upload, &kTritan), 15);
+    need(n, "dE download/upload normal", delta_e(t.download, t.upload, Vision::Normal), 15);
+    need(n, "dE download/upload protan", delta_e(t.download, t.upload, Vision::Protan), 15);
+    need(n, "dE download/upload deutan", delta_e(t.download, t.upload, Vision::Deutan), 15);
+    need(n, "dE download/upload tritan", delta_e(t.download, t.upload, Vision::Tritan), 15);
 
     // The flag the widgets branch on agrees with the colours.
     CHECK(t.dark == (t.surface.lightness() < 128));
@@ -131,6 +76,30 @@ void check_theme(ThemeId id) {
     CHECK(p.color(QPalette::ToolTipBase) == t.card);
 }
 
+// A traffic colour preset on a theme: the chosen pair, through the same
+// with_traffic() the widgets get it from, held to the data-mark floors.
+void check_preset(TrafficColours c, ThemeId id) {
+    const QByteArray label = (traffic_key(c) + QStringLiteral(" on ") + theme_key(id)).toUtf8();
+    const char* n = label.constData();
+    const Theme t = with_traffic(theme_palette(id), c, {});
+    const auto preset = traffic_preset(c, t.dark);
+    CHECK(preset.has_value());
+    if (!preset) return;
+    CHECK(t.download == preset->download && t.upload == preset->upload);
+    for (auto [fg_name, fg] : {std::pair{"download", t.download}, std::pair{"upload", t.upload}})
+        for (auto [bg_name, bg] : {std::pair{"card", t.card}, std::pair{"plot_bg", t.plot_bg}})
+            need(n, QStringLiteral("%1 / %2").arg(fg_name, bg_name).toUtf8().constData(),
+                 contrast(fg, bg), 3.0);
+    need(n, "dE normal", delta_e(t.download, t.upload, Vision::Normal), 15);
+    need(n, "dE protan", delta_e(t.download, t.upload, Vision::Protan), 15);
+    need(n, "dE deutan", delta_e(t.download, t.upload, Vision::Deutan), 15);
+    // Reported, not required: blue/yellow is the classic tritan confusion.
+    std::printf("  %-28s %-30s %6.2f  (reported)\n", n, "dE tritan",
+                delta_e(t.download, t.upload, Vision::Tritan));
+    // A pair the test passes must not raise the dialog's warning either.
+    CHECK(traffic_warnings(t, {t.download, t.upload}).isEmpty());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -138,9 +107,9 @@ int main(int argc, char** argv) {
 
     // The method reproduces the figures theme.h has always quoted for the
     // original pair, so the numbers below are on the same scale.
-    CHECK(std::abs(delta_e(QColor(0x2a, 0x78, 0xd6), QColor(0xeb, 0x68, 0x34), &kProtan) -
+    CHECK(std::abs(delta_e(QColor(0x2a, 0x78, 0xd6), QColor(0xeb, 0x68, 0x34), Vision::Protan) -
                    24.7) < 0.05);
-    CHECK(std::abs(delta_e(QColor(0x39, 0x87, 0xe5), QColor(0xd9, 0x59, 0x26), &kProtan) -
+    CHECK(std::abs(delta_e(QColor(0x39, 0x87, 0xe5), QColor(0xd9, 0x59, 0x26), Vision::Protan) -
                    26.8) < 0.05);
 
     // The table: System first, keys unique and round-tripping, names unique.
@@ -165,6 +134,53 @@ int main(int argc, char** argv) {
         (theme_palette(id).dark ? dark : light)++;
     }
     CHECK(dark >= 2 && light >= 2);
+
+    // Every traffic colour preset on every named theme.
+    for (TrafficColours c : all_traffic_colours()) {
+        if (c == TrafficColours::Theme || c == TrafficColours::Custom) {
+            CHECK(!traffic_preset(c, false) && !traffic_preset(c, true));
+            continue;
+        }
+        for (ThemeId id : all_themes())
+            if (id != ThemeId::System) check_preset(c, id);
+    }
+    // Default changes nothing; Custom uses the given pair as it is.
+    for (ThemeId id : all_themes()) {
+        const Theme base = theme_palette(id);
+        const Theme same = with_traffic(base, TrafficColours::Theme, {Qt::red, Qt::green});
+        CHECK(same.download == base.download && same.upload == base.upload);
+        const Theme custom = with_traffic(base, TrafficColours::Custom, {Qt::red, Qt::green});
+        CHECK(custom.download == QColor(Qt::red) && custom.upload == QColor(Qt::green));
+    }
+    QSet<QString> tkeys, tnames;
+    for (TrafficColours c : all_traffic_colours()) {
+        tkeys.insert(traffic_key(c));
+        tnames.insert(traffic_name(c));
+        CHECK(traffic_from_key(traffic_key(c)) == c);
+    }
+    CHECK(tkeys.size() == all_traffic_colours().size());
+    CHECK(tnames.size() == all_traffic_colours().size());
+    CHECK(all_traffic_colours().first() == TrafficColours::Theme);
+    CHECK(all_traffic_colours().last() == TrafficColours::Custom);
+    CHECK(traffic_name(TrafficColours::Theme) == QStringLiteral("Default (follow theme)"));
+
+    // The warnings, in plain words.
+    {
+        const Theme light = theme_palette(ThemeId::Light);
+        // Pale yellow on a white card: invisible.
+        QStringList w = traffic_warnings(light, {light.download, QColor(0xff, 0xf0, 0x80)});
+        CHECK(w == QStringList{QStringLiteral("Upload is hard to see on this background.")});
+        w = traffic_warnings(light, {QColor(0xf0, 0xf0, 0xf0), light.upload});
+        CHECK(w == QStringList{QStringLiteral("Download is hard to see on this background.")});
+        // Red against green of the same lightness: fine for normal vision,
+        // a single colour for protan and deutan.
+        w = traffic_warnings(light, {QColor(0xc0, 0x40, 0x30), QColor(0x3f, 0x80, 0x20)});
+        CHECK(w.contains(QStringLiteral(
+            "Download and upload are hard to tell apart for colour-blind people.")));
+        w = traffic_warnings(light, {QColor(0x2a, 0x78, 0xd6), QColor(0x2c, 0x7a, 0xd8)});
+        CHECK(w.contains(QStringLiteral("Download and upload look too alike.")));
+        CHECK(traffic_warnings(light, {light.download, light.upload}).isEmpty());
+    }
 
     // System follows the desktop: Light on a light window colour, Dark on a
     // dark one, and dark_mode() with it.

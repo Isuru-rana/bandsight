@@ -4,11 +4,19 @@
 #include <QApplication>
 #include <QCoreApplication>
 
+#include <algorithm>
+
+#include "colour_checks.h"
+
 namespace bandsight::gui {
 
 namespace {
 
 ThemeId g_theme = ThemeId::System;
+TrafficColours g_traffic = TrafficColours::Theme;
+// The default custom pair is the Light theme's own, so a first pick of Custom
+// starts from something sensible rather than black on black.
+TrafficPair g_custom{QColor(0x2a, 0x78, 0xd6), QColor(0xe5, 0x60, 0x2b)};
 
 // The desktop's own lightness. Only meaningful while the System theme is
 // active: a named theme replaces the application palette, and reading it back
@@ -206,7 +214,7 @@ Theme theme_palette(ThemeId id) {
 void set_current_theme(ThemeId id) { g_theme = id; }
 ThemeId current_theme() { return g_theme; }
 
-Theme theme() { return theme_palette(g_theme); }
+Theme theme() { return with_traffic(theme_palette(g_theme), g_traffic, g_custom); }
 
 bool dark_mode() { return theme().dark; }
 
@@ -235,6 +243,111 @@ QPalette qt_palette(const Theme& t) {
         p.setColor(QPalette::Disabled, role, t.ink_faint);
     p.setColor(QPalette::Disabled, QPalette::Highlight, t.track);
     return p;
+}
+
+// --- Traffic colours ----------------------------------------------------------
+
+const QVector<TrafficColours>& all_traffic_colours() {
+    static const QVector<TrafficColours> all{
+        TrafficColours::Theme,       TrafficColours::BlueOrange, TrafficColours::TealMagenta,
+        TrafficColours::GreenPurple, TrafficColours::BlueYellow, TrafficColours::Custom};
+    return all;
+}
+
+QString traffic_key(TrafficColours c) {
+    switch (c) {
+    case TrafficColours::Theme:       return QStringLiteral("theme");
+    case TrafficColours::BlueOrange:  return QStringLiteral("blue-orange");
+    case TrafficColours::TealMagenta: return QStringLiteral("teal-magenta");
+    case TrafficColours::GreenPurple: return QStringLiteral("green-purple");
+    case TrafficColours::BlueYellow:  return QStringLiteral("blue-yellow");
+    case TrafficColours::Custom:      return QStringLiteral("custom");
+    }
+    return QStringLiteral("theme");
+}
+
+std::optional<TrafficColours> traffic_from_key(const QString& key) {
+    for (TrafficColours c : all_traffic_colours())
+        if (traffic_key(c) == key) return c;
+    return std::nullopt;
+}
+
+QString traffic_name(TrafficColours c) {
+    const char* ctx = "TrafficColours";
+    switch (c) {
+    case TrafficColours::Theme:       return QCoreApplication::translate(ctx, "Default (follow theme)");
+    case TrafficColours::BlueOrange:  return QCoreApplication::translate(ctx, "Blue / Orange");
+    case TrafficColours::TealMagenta: return QCoreApplication::translate(ctx, "Teal / Magenta");
+    case TrafficColours::GreenPurple: return QCoreApplication::translate(ctx, "Green / Purple");
+    case TrafficColours::BlueYellow:  return QCoreApplication::translate(ctx, "Blue / Yellow");
+    case TrafficColours::Custom:      return QCoreApplication::translate(ctx, "Custom");
+    }
+    return {};
+}
+
+// Light steps clear 3:1 on Light's and Sand's card and plot; dark steps on
+// Dark's, High contrast's and Slate's. The figures are in the test's output.
+std::optional<TrafficPair> traffic_preset(TrafficColours c, bool dark) {
+    const auto pair = [](QRgb d, QRgb u) { return TrafficPair{QColor(d), QColor(u)}; };
+    switch (c) {
+    case TrafficColours::BlueOrange:
+        // The pair the themes use. The light step is one shade darker than
+        // Light's own: that one is 2.98:1 on Sand's plot.
+        return dark ? pair(0x3987e5, 0xd95926) : pair(0x2a72cc, 0xd4561f);
+    case TrafficColours::TealMagenta:
+        // Red-green deficiency pulls teal and magenta towards the same grey,
+        // so the pair is held apart by lightness: a deep plum against teal on
+        // light surfaces, a bright aqua against magenta on dark ones.
+        return dark ? pair(0x5ee0d1, 0xcc3399) : pair(0x1b9388, 0x7d0d5b);
+    case TrafficColours::GreenPurple:
+        return dark ? pair(0x4cb860, 0xa983ec) : pair(0x2e8540, 0x7b4fc4);
+    case TrafficColours::BlueYellow:
+        // Blue against yellow survives protan and deutan best of all. Yellow
+        // cannot reach 3:1 on a light surface, so the light step is ochre.
+        return dark ? pair(0x4d8ff0, 0xe8c03a) : pair(0x2a62c9, 0xa67600);
+    case TrafficColours::Theme:
+    case TrafficColours::Custom:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+void set_traffic_colours(TrafficColours c, const TrafficPair& custom) {
+    g_traffic = c;
+    if (custom.download.isValid() && custom.upload.isValid()) g_custom = custom;
+}
+TrafficColours current_traffic_colours() { return g_traffic; }
+TrafficPair custom_traffic_colours() { return g_custom; }
+
+Theme with_traffic(Theme t, TrafficColours c, const TrafficPair& custom) {
+    if (c == TrafficColours::Custom) {
+        if (custom.download.isValid()) t.download = custom.download;
+        if (custom.upload.isValid()) t.upload = custom.upload;
+    } else if (const auto p = traffic_preset(c, t.dark)) {
+        t.download = p->download;
+        t.upload = p->upload;
+    }
+    return t;
+}
+
+QStringList traffic_warnings(const Theme& t, const TrafficPair& pair) {
+    const char* ctx = "TrafficColours";
+    QStringList out;
+    const auto visible = [&](const QColor& c) {
+        return std::min(contrast_ratio(c, t.plot_bg), contrast_ratio(c, t.card)) >=
+               kMinMarkContrast;
+    };
+    if (!visible(pair.download))
+        out << QCoreApplication::translate(ctx, "Download is hard to see on this background.");
+    if (!visible(pair.upload))
+        out << QCoreApplication::translate(ctx, "Upload is hard to see on this background.");
+    if (delta_e(pair.download, pair.upload, Vision::Normal) < kMinDeltaE)
+        out << QCoreApplication::translate(ctx, "Download and upload look too alike.");
+    else if (delta_e(pair.download, pair.upload, Vision::Protan) < kMinDeltaE ||
+             delta_e(pair.download, pair.upload, Vision::Deutan) < kMinDeltaE)
+        out << QCoreApplication::translate(
+            ctx, "Download and upload are hard to tell apart for colour-blind people.");
+    return out;
 }
 
 }  // namespace bandsight::gui
