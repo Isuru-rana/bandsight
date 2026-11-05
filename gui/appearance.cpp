@@ -12,6 +12,15 @@ namespace {
 const QString kRateKey = QStringLiteral("units/rate");
 const QString kVolumeKey = QStringLiteral("units/volume");
 const QString kThemeKey = QStringLiteral("appearance/theme");
+const QString kTrafficKey = QStringLiteral("traffic/colours");
+const QString kTrafficDownKey = QStringLiteral("traffic/download");
+const QString kTrafficUpKey = QStringLiteral("traffic/upload");
+
+// An unparseable stored colour is "not set", never black.
+QColor stored_colour(const QSettings& s, const QString& key) {
+    const QColor c = QColor::fromString(s.value(key).toString());
+    return c.isValid() ? c : QColor();
+}
 }  // namespace
 
 Appearance& Appearance::instance() {
@@ -28,6 +37,13 @@ void Appearance::load() {
     const int vol = s.value(kVolumeKey, int(VolumeUnit::Decimal)).toInt();
     set_volume_unit(vol == int(VolumeUnit::Binary) ? VolumeUnit::Binary : VolumeUnit::Decimal);
     set_current_theme(theme_from_key(s.value(kThemeKey).toString()).value_or(ThemeId::System));
+    TrafficPair custom{stored_colour(s, kTrafficDownKey), stored_colour(s, kTrafficUpKey)};
+    TrafficColours traffic = traffic_from_key(s.value(kTrafficKey).toString())
+                                 .value_or(TrafficColours::Theme);
+    // Custom with no usable pair stored has nothing to show.
+    if (traffic == TrafficColours::Custom && !(custom.download.isValid() && custom.upload.isValid()))
+        traffic = TrafficColours::Theme;
+    set_traffic_colours(traffic, custom);
     applyTheme();
     notify();
 }
@@ -37,6 +53,10 @@ void Appearance::save() const {
     s.setValue(kRateKey, int(rate_unit()));
     s.setValue(kVolumeKey, int(volume_unit()));
     s.setValue(kThemeKey, theme_key(current_theme()));
+    s.setValue(kTrafficKey, traffic_key(current_traffic_colours()));
+    const TrafficPair custom = custom_traffic_colours();
+    s.setValue(kTrafficDownKey, custom.download.name());
+    s.setValue(kTrafficUpKey, custom.upload.name());
 }
 
 void Appearance::setRateUnit(RateUnit u) {
@@ -56,6 +76,15 @@ void Appearance::setTheme(ThemeId id) {
     set_current_theme(id);
     applyTheme();
     notify();
+}
+
+void Appearance::setTrafficColours(TrafficColours c, const TrafficPair& custom) {
+    const TrafficPair before = custom_traffic_colours();
+    if (c == current_traffic_colours() && custom.download == before.download &&
+        custom.upload == before.upload)
+        return;
+    set_traffic_colours(c, custom);
+    notify();   // every chart reads theme() when it paints: a repaint is all it takes
 }
 
 // System leaves the desktop's style and palette alone, which is what it always

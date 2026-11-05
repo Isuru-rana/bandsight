@@ -11,6 +11,7 @@ class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
+class QPushButton;
 class QSpinBox;
 class QTabWidget;
 
@@ -49,6 +50,7 @@ public:
     RateUnit rateUnit() const;
     VolumeUnit volumeUnit() const;
     ThemeId themeId() const;
+    TrafficColours trafficColours() const;
     bool autostart() const;
 
     void setDaemonInfo(const DaemonInfo& d);
@@ -60,6 +62,17 @@ public:
     QComboBox* rateCombo() const { return rate_; }
     QComboBox* volumeCombo() const { return volume_; }
     QComboBox* themeCombo() const { return theme_; }
+    QComboBox* trafficCombo() const { return traffic_; }
+    QPushButton* downloadColourButton() const { return down_button_; }
+    QPushButton* uploadColourButton() const { return up_button_; }
+    QPushButton* resetTrafficButton() const { return reset_traffic_; }
+    // Empty and hidden when the pair is fine on the current theme.
+    QLabel* trafficWarning() const { return traffic_warning_; }
+
+    // What the Download/Upload buttons do once their colour dialog returns:
+    // switches to Custom with this pair and applies it. Public so a test can
+    // choose colours without driving a modal QColorDialog.
+    void setCustomColours(const QColor& download, const QColor& upload);
     QTabWidget* sections() const { return tabs_; }
     AboutPage* aboutPage() const { return about_; }
 
@@ -84,12 +97,23 @@ public:
 private:
     QWidget* generalPage();
     QWidget* displayPage();
+    // Swatches, the reset button's state and the warning, from what is in
+    // effect now. Also re-run on a theme change: a custom colour that was fine
+    // on Dark can disappear on Light.
+    void refreshTraffic();
+    void pickColour(bool download);
 
     QDoubleSpinBox* cap_;
     QSpinBox* day_;
     QComboBox* rate_;
     QComboBox* volume_;
     QComboBox* theme_;
+    QComboBox* traffic_;
+    QPushButton* down_button_;
+    QPushButton* up_button_;
+    QPushButton* reset_traffic_;
+    QLabel* traffic_warning_;
+    TrafficPair custom_;   // the dialog's working custom pair
     QCheckBox* autostart_;
     QLabel* result_;
     QTabWidget* tabs_;
@@ -102,6 +126,8 @@ private:
     RateUnit initial_rate_;
     VolumeUnit initial_volume_;
     ThemeId initial_theme_;
+    TrafficColours initial_traffic_;
+    TrafficPair initial_custom_;
 };
 
 }  // namespace bandsight::gui

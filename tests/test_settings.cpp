@@ -30,6 +30,7 @@
 #include "tray_icon.h"
 #include "units.h"
 #include "widgets/card.h"
+#include "widgets/donut_chart.h"
 #include "widgets/ranked_list.h"
 #include "widgets/stat_pair.h"
 
@@ -47,6 +48,16 @@ QStringList item_texts(QComboBox* c) {
     QStringList out;
     for (int i = 0; i < c->count(); ++i) out << c->itemText(i);
     return out;
+}
+
+// How many pixels of a widget are exactly this colour, as it paints now.
+int pixels_of(QWidget& w, const QColor& c) {
+    const QImage img = w.grab().toImage().convertToFormat(QImage::Format_RGB32);
+    int n = 0;
+    for (int y = 0; y < img.height(); ++y)
+        for (int x = 0; x < img.width(); ++x)
+            if (QColor(img.pixel(x, y)).rgb() == c.rgb()) ++n;
+    return n;
 }
 
 AppHostTotal pair(const char* ip, quint64 rx) {
@@ -159,6 +170,104 @@ int main(int argc, char** argv) {
     a.setTheme(ThemeId::System);
     CHECK(QApplication::style()->name() == system_style);
     CHECK(QApplication::palette().color(QPalette::Window) == system_window);
+
+    // --- traffic colours ------------------------------------------------------
+    {
+        // The donut draws download from theme(): a choice reaches it at the
+        // next paint, with nothing re-fed.
+        DonutChart donut;
+        donut.resize(200, 200);
+        donut.setValues(1'000'000, 0);
+        const Theme light = theme_palette(ThemeId::Light);   // System on offscreen
+        CHECK(!dark_mode());
+        CHECK(pixels_of(donut, light.download) > 100);
+        const TrafficPair teal = *traffic_preset(TrafficColours::TealMagenta, false);
+        a.setTrafficColours(TrafficColours::TealMagenta, custom_traffic_colours());
+        CHECK(theme().download == teal.download && theme().upload == teal.upload);
+        CHECK(pixels_of(donut, teal.download) > 100);
+        CHECK(pixels_of(donut, light.download) == 0);
+        // On top of any theme: a dark theme takes the preset's dark step.
+        a.setTheme(ThemeId::Slate);
+        CHECK(theme().download == traffic_preset(TrafficColours::TealMagenta, true)->download);
+        CHECK(theme().surface == theme_palette(ThemeId::Slate).surface);
+        a.setTheme(ThemeId::System);
+        a.setTrafficColours(TrafficColours::Theme, custom_traffic_colours());
+        CHECK(pixels_of(donut, light.download) > 100);
+    }
+    {
+        SettingsDialog d(QuotaInfo{});
+        CHECK(d.trafficCombo()->count() == all_traffic_colours().size());
+        CHECK(d.trafficCombo()->itemText(0) == QStringLiteral("Default (follow theme)"));
+        CHECK(item_texts(d.trafficCombo()).contains(QStringLiteral("Blue / Yellow")));
+        CHECK(item_texts(d.trafficCombo()).last() == QStringLiteral("Custom"));
+        CHECK(!d.resetTrafficButton()->isEnabled());   // already on the theme's colours
+        CHECK(d.trafficWarning()->isHidden());
+
+        // A preset applies at once.
+        d.trafficCombo()->setCurrentIndex(
+            d.trafficCombo()->findData(QStringLiteral("blue-yellow")));
+        CHECK(current_traffic_colours() == TrafficColours::BlueYellow);
+        CHECK(theme().upload == traffic_preset(TrafficColours::BlueYellow, false)->upload);
+        CHECK(d.resetTrafficButton()->isEnabled());
+        CHECK(d.trafficWarning()->isHidden());
+
+        // A custom pick that is hard to see warns, in words, without refusing.
+        const QColor pale(0xff, 0xf0, 0x80);
+        d.setCustomColours(theme().download, pale);
+        CHECK(d.trafficColours() == TrafficColours::Custom);
+        CHECK(theme().upload == pale);   // applied anyway
+        CHECK(!d.trafficWarning()->isHidden());
+        CHECK(d.trafficWarning()->text() ==
+              QStringLiteral("Upload is hard to see on this background."));
+        // A good pick clears it.
+        d.setCustomColours(QColor(0x1f, 0x5f, 0xb0), QColor(0xb8, 0x4a, 0x10));
+        CHECK(d.trafficWarning()->isHidden());
+        CHECK(d.trafficWarning()->text().isEmpty());
+        // Red against green of one lightness: the colour-blind warning.
+        d.setCustomColours(QColor(0xc0, 0x40, 0x30), QColor(0x3f, 0x80, 0x20));
+        CHECK(d.trafficWarning()->text().contains(QStringLiteral("colour-blind")));
+        // The warning follows the theme: dark navy is fine on Light, gone on Dark.
+        d.setCustomColours(QColor(0x1a, 0x2a, 0x6a), QColor(0xb8, 0x4a, 0x10));
+        CHECK(d.trafficWarning()->isHidden());
+        d.themeCombo()->setCurrentIndex(d.themeCombo()->findData(QStringLiteral("dark")));
+        CHECK(d.trafficWarning()->text().contains(
+            QStringLiteral("Download is hard to see on this background.")));
+        // The swatches show the pair in effect.
+        CHECK(!d.downloadColourButton()->icon().isNull());
+
+        // Reset goes back to the theme's pair.
+        d.resetTrafficButton()->click();
+        CHECK(current_traffic_colours() == TrafficColours::Theme);
+        CHECK(theme().download == theme_palette(ThemeId::Dark).download);
+
+        // Cancel restores the choice the dialog opened with.
+        d.setCustomColours(QColor(0x1f, 0x5f, 0xb0), QColor(0xb8, 0x4a, 0x10));
+        d.reject();
+        CHECK(current_traffic_colours() == TrafficColours::Theme);
+        CHECK(current_theme() == ThemeId::System);
+        CHECK(!QSettings().contains(QStringLiteral("traffic/colours")));
+    }
+    {
+        // OK keeps a custom pair; a fresh start brings it back.
+        SettingsDialog d(QuotaInfo{});
+        d.setCustomColours(QColor(0x1f, 0x5f, 0xb0), QColor(0xb8, 0x4a, 0x10));
+        d.applyLocal();
+        QSettings s;
+        CHECK(s.value(QStringLiteral("traffic/colours")).toString() == QStringLiteral("custom"));
+        CHECK(s.value(QStringLiteral("traffic/download")).toString() == QStringLiteral("#1f5fb0"));
+        CHECK(s.value(QStringLiteral("traffic/upload")).toString() == QStringLiteral("#b84a10"));
+        set_traffic_colours(TrafficColours::Theme, {});
+        a.load();
+        CHECK(current_traffic_colours() == TrafficColours::Custom);
+        CHECK(theme().download == QColor(0x1f, 0x5f, 0xb0));
+        // Custom with a broken stored colour falls back to the theme's pair.
+        s.setValue(QStringLiteral("traffic/upload"), QStringLiteral("not a colour"));
+        a.load();
+        CHECK(current_traffic_colours() == TrafficColours::Theme);
+        QSettings().clear();
+        a.load();
+        CHECK(current_traffic_colours() == TrafficColours::Theme);
+    }
 
     // --- the dialog -----------------------------------------------------------
     {
