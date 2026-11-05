@@ -3,7 +3,7 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-05
 
 ### Added
 - `bandsight-cli`: terminal client for headless machines, no Qt

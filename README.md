@@ -26,7 +26,7 @@
 </p>
 
 > [!WARNING]
-> **Bandsight is under active development (v0.5.x, pre-1.0).**
+> **Bandsight is under active development (v0.6.x, pre-1.0).**
 > Tested on Ubuntu 26.04, kernel 7.0, KDE Plasma (Wayland), x86_64. Other distros,
 > kernels and desktops are built in CI but not yet tested at runtime.
 > The SQLite schema and the socket protocol may change between releases.
