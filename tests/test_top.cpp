@@ -76,7 +76,9 @@ void decoder() {
     // Garbage that never ends is dropped, not held forever.
     {
         KeyDecoder d;
-        const auto k = d.feed("\033[" + std::string(40, '1'));
+        std::string junk = "\033[";
+        junk += std::string(40, '1');
+        const auto k = d.feed(junk);
         CHECK(!k.empty() && k[0].code == KeyCode::Unknown);
         CHECK(d.feed("q") == std::vector<Key>{ch('q')});
     }
@@ -194,7 +196,11 @@ void golden(const std::string& title, TopState s, const TopData& d, int cols, in
     for (const auto& ln : lines) CHECK(int(text_width(ln)) == cols);
     g_golden += "### ";
     g_golden += title;
-    g_golden += " (" + std::to_string(cols) + "x" + std::to_string(rows) + ")\n";
+    g_golden += " (";
+    g_golden += std::to_string(cols);
+    g_golden += 'x';
+    g_golden += std::to_string(rows);
+    g_golden += ")\n";
     for (const auto& ln : lines) {
         g_golden += '|';
         g_golden += ln;
@@ -271,8 +277,12 @@ void rendering(const std::string& dir) {
     // A database that cannot be read.
     TopData broken = day;
     broken.history = HistoryView{};
-    broken.history.error = "Cannot read /nowhere.db: the file does not exist.";
-    for (auto& p : broken.history.panels) p.empty_text = "No history.";
+    broken.history.error = "Cannot read the database.";
+    for (auto& p : broken.history.panels) p.empty_text = "No history to show.";
+    // Long, as db_error() words it: wrapped over the panel's rows.
+    broken.history.panels[0].empty_text =
+        "Cannot read /var/lib/bandsight/bandsight.db: add yourself to the 'bandsight' group "
+        "(sudo usermod -aG bandsight $USER), then log in again.";
     golden("no database", s, broken, 80, 24);
 }
 

@@ -29,6 +29,8 @@ public:
     State connect(const std::string& path, int timeout_ms);
     const core::Hello& hello() const { return hello_; }
     const std::string& error() const { return error_; }   // why, for NoAccess / NoAnswer
+    // For poll(): readable when a frame may be waiting. -1 when not connected.
+    int fd() const { return fd_; }
 
     // The next sample frame, waiting up to timeout_ms (-1: no limit). Other
     // frame types are skipped. Interrupted when a signal arrived (Ctrl-C).

@@ -75,7 +75,7 @@ include(GNUInstallDirs)
 # The command-line client. bandsight_common only: no Qt, no BPF, so it builds
 # and runs on a headless machine (-DBANDSIGHT_BUILD_GUI=OFF).
 add_library(bandsight_cli STATIC cli/args.cpp cli/output.cpp cli/daemon_socket.cpp
-            cli/commands.cpp cli/terminal.cpp cli/top_input.cpp cli/top_view.cpp)
+            cli/commands.cpp cli/terminal.cpp cli/top_input.cpp cli/top_view.cpp cli/top.cpp)
 target_include_directories(bandsight_cli PUBLIC ${CMAKE_SOURCE_DIR}/cli
                            ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(bandsight_cli PUBLIC bandsight_common)

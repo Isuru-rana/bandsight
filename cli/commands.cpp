@@ -53,6 +53,8 @@ struct DbOpen {
     core::HistoryDb db;
 };
 
+}  // namespace
+
 std::string db_error(const std::string& path, const core::HistoryDb& db) {
     const std::string head = "Cannot read " + path + ": ";
     switch (db.open_error()) {
@@ -70,6 +72,8 @@ std::string db_error(const std::string& path, const core::HistoryDb& db) {
     }
     return head + db.error() + ".";
 }
+
+namespace {
 
 // Which database to read: --db, else the one the running daemon names in its
 // greeting, else the default. A history command still works with the daemon
@@ -861,6 +865,7 @@ int cmd_live(const Ctx& c) {
 }  // namespace
 
 void request_stop() { g_stop = 1; }
+bool stop_requested() { return g_stop != 0; }
 
 int run(const std::vector<std::string>& argv, const Env& env) {
     std::string why;
@@ -887,6 +892,7 @@ int run(const std::vector<std::string>& argv, const Env& env) {
     case Command::Types: return cmd_types(c);
     case Command::Ifaces: return cmd_ifaces(c);
     case Command::Live: return cmd_live(c);
+    case Command::Top: return cmd_top(*o, env);
     case Command::None: break;
     }
     return kExitUsage;

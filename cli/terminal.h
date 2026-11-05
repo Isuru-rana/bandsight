@@ -17,8 +17,10 @@ namespace bandsight::cli {
 class Terminal {
 public:
     // Escape sequences written on entering and leaving. Public for the tests.
-    static constexpr const char* kEnter = "\033[?1049h\033[?25l\033[2J";
-    static constexpr const char* kLeave = "\033[0m\033[?25h\033[?1049l";
+    // Alternate screen, cursor hidden, no autowrap (so the bottom-right cell
+    // can be drawn without scrolling); then each undone.
+    static constexpr const char* kEnter = "\033[?1049h\033[?25l\033[?7l\033[2J";
+    static constexpr const char* kLeave = "\033[0m\033[?7h\033[?25h\033[?1049l";
 
     Terminal(int in_fd, int out_fd) : in_(in_fd), out_(out_fd) {}
     ~Terminal() { restore(); }

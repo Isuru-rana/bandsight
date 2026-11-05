@@ -352,7 +352,7 @@
 ### no database (80x24)
 |Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
 |Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
-|Cycle   Cannot read /nowhere.db: the file does not exist.                       |
+|Cycle   Cannot read the database.                                               |
 |                                                                                |
 |Last 60 s                                                                       |
 |down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
@@ -360,17 +360,17 @@
 |                                                                                |
 |▶ 1 Applications                                                                |
 | APPLICATION          DOWN         UP                                           |
-| No history.                                                                    |
-|                                                                                |
+| Cannot read /var/lib/bandsight/bandsight.db: add yourself to the 'bandsight'   |
+| group (sudo usermod -aG bandsight $USER), then log in again.                   |
 |                                                                                |
 |  2 Hosts                                                                       |
 | HOST                 DOWN         UP                                           |
-| No history.                                                                    |
+| No history to show.                                                            |
 |                                                                                |
 |                                                                                |
 |  3 Traffic types                                                               |
 | SERVICE              DOWN         UP                                           |
-| No history.                                                                    |
+| No history to show.                                                            |
 |                                                                                |
 |                                                                                |
 | 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |

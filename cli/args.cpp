@@ -9,6 +9,7 @@
 
 #include "build_info.h"
 #include "core/cycle.h"
+#include "top_input.h"
 
 namespace bandsight::cli {
 
@@ -122,6 +123,7 @@ const char* command_name(Command c) {
     case Command::Types: return "types";
     case Command::Ifaces: return "ifaces";
     case Command::Live: return "live";
+    case Command::Top: return "top";
     case Command::None: break;
     }
     return "";
@@ -131,7 +133,7 @@ namespace {
 
 std::optional<Command> command_from(const std::string& s) {
     for (Command c : {Command::Status, Command::Apps, Command::Hosts, Command::Types,
-                      Command::Ifaces, Command::Live})
+                      Command::Ifaces, Command::Live, Command::Top})
         if (s == command_name(c)) return c;
     return std::nullopt;
 }
@@ -145,6 +147,7 @@ bool takes(Command c, const std::string& opt) {
     case Command::Types: return period.count(opt);
     case Command::Ifaces: return period.count(opt) || opt == "--all";
     case Command::Live: return opt == "--interval" || opt == "--count";
+    case Command::Top: return opt == "--period" || opt == "--ascii";
     case Command::Status:
     case Command::None: break;
     }
@@ -188,6 +191,11 @@ std::optional<Options> parse_args(const std::vector<std::string>& argv, std::str
         if (a == "--all") {
             if (!takes(o.command, a)) return usage("'" + a + "' is only for 'ifaces'.");
             o.all = true;
+            continue;
+        }
+        if (a == "--ascii") {
+            if (!takes(o.command, a)) return usage("'--ascii' is only for 'top'.");
+            o.ascii = true;
             continue;
         }
         if (a.rfind("-", 0) == 0 && a.size() > 1) {
@@ -240,6 +248,11 @@ std::optional<Options> parse_args(const std::vector<std::string>& argv, std::str
     if (o.period_given && (!o.from.empty() || !o.to.empty()))
         return usage("Give either '--period' or '--from'/'--to', not both.");
     if (!o.to.empty() && o.from.empty()) return usage("'--to' needs '--from'.");
+    if (o.command == Command::Top && o.json)
+        return usage("'top' is a screen, not JSON; 'status --json' and 'live --json' are.");
+    if (o.command == Command::Top && o.period_given &&
+        top_period_index(o.period) == std::string::npos)
+        return usage("'top' steps through 5m, 1h, 24h, 7d, 30d and cycle; start it on one of those.");
     if (o.period_given && o.period != "cycle" && !find_period(o.period))
         return usage("Unknown period '" + o.period +
                      "'. Use 5m, 30m, 1h, 6h, 12h, 24h, 7d, 30d or cycle.");
@@ -347,6 +360,31 @@ std::string help_text(Command c) {
                "reads from the daemon; never changes anything.\n\n"
                "  --interval S    seconds per line, averaged (default 1)\n"
                "  --count N       stop after N lines\n" + common;
+    case Command::Top:
+        return "Usage: bandsight-cli top [--period P] [--ascii]\n\n"
+               "A full-screen view, refreshed as it runs: whether bandsightd is running,\n"
+               "the current download and upload rate and the last 60 seconds of it, the\n"
+               "billing cycle, and usage per application, host and traffic type.\n"
+               "Live rates come from the daemon's socket every second (read only: nothing\n"
+               "is ever sent to it); the lists are read from the database every 5 seconds,\n"
+               "and still work while the daemon is stopped.\n\n"
+               "Keys:\n"
+               "  1 2 3, Tab      focus Applications, Hosts or Traffic types\n"
+               "  p, P            next or previous period: 5m 1h 24h 7d 30d cycle\n"
+               "  b               rates in Mb/s or MB/s\n"
+               "  Up Down, j k    scroll the focused list (PgUp PgDn, Home End, g G)\n"
+               "  q, Ctrl-C       quit\n\n"
+               "  --period P      the period to start on (default 24h)\n"
+               "  --ascii         ASCII instead of unicode blocks (also used when the\n"
+               "                  locale is not UTF-8)\n"
+               "  --bytes         start with rates in MB/s instead of Mb/s\n"
+               "  --binary        volumes in binary units (GiB) instead of decimal (GB)\n"
+               "  --db PATH       read this database instead of the daemon's\n"
+               "                  (default /var/lib/bandsight/bandsight.db)\n"
+               "  --socket PATH   the daemon's socket (default /run/bandsightd/sock)\n"
+               "  -h, --help      show help\n"
+               "\nNeeds a terminal: run from a script, it exits with status 2. Colour is\n"
+               "used unless NO_COLOR is set.\n";
     case Command::None: break;
     }
     return "Usage: bandsight-cli <command> [options]\n"
@@ -359,7 +397,8 @@ std::string help_text(Command c) {
            "  hosts           usage per remote host\n"
            "  types           usage per kind of traffic (HTTPS, DNS, ...)\n"
            "  ifaces          usage per network interface\n"
-           "  live            current rates until Ctrl-C\n\n"
+           "  live            current rates until Ctrl-C\n"
+           "  top             full-screen live view: rates, cycle, apps, hosts, types\n\n"
            "Periods (apps, hosts, types, ifaces):\n" + period +
            common +
            "  -V, --version   show the version\n\n"

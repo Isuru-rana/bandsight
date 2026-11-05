@@ -360,6 +360,33 @@ $ bandsight-cli live --socket $TMP/none
 bandsightd is not running (no daemon at $TMP/none). Start it with: sudo systemctl start bandsightd
 [exit 1]
 
+### top, not a terminal
+$ bandsight-cli top --db $TMP/fixture.db
+[stderr]
+bandsight-cli top needs a terminal. In a script, use 'bandsight-cli status' or 'bandsight-cli live' (both take --json).
+[exit 2]
+
+### top, a period it does not step through
+$ bandsight-cli top --period 30m
+[stderr]
+'top' steps through 5m, 1h, 24h, 7d, 30d and cycle; start it on one of those.
+Run 'bandsight-cli top --help' for usage.
+[exit 2]
+
+### --ascii on another command
+$ bandsight-cli apps --ascii
+[stderr]
+'--ascii' is only for 'top'.
+Run 'bandsight-cli apps --help' for usage.
+[exit 2]
+
+### top, --json
+$ bandsight-cli top --json
+[stderr]
+'top' is a screen, not JSON; 'status --json' and 'live --json' are.
+Run 'bandsight-cli top --help' for usage.
+[exit 2]
+
 ### help
 $ bandsight-cli --help
 Usage: bandsight-cli <command> [options]
@@ -375,6 +402,7 @@ Commands:
   types           usage per kind of traffic (HTTPS, DNS, ...)
   ifaces          usage per network interface
   live            current rates until Ctrl-C
+  top             full-screen live view: rates, cycle, apps, hosts, types
 
 Periods (apps, hosts, types, ifaces):
   --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
@@ -553,5 +581,37 @@ Common options:
                   (default /var/lib/bandsight/bandsight.db)
   --socket PATH   the daemon's socket (default /run/bandsightd/sock)
   -h, --help      show help
+[exit 0]
+
+### top help
+$ bandsight-cli top --help
+Usage: bandsight-cli top [--period P] [--ascii]
+
+A full-screen view, refreshed as it runs: whether bandsightd is running,
+the current download and upload rate and the last 60 seconds of it, the
+billing cycle, and usage per application, host and traffic type.
+Live rates come from the daemon's socket every second (read only: nothing
+is ever sent to it); the lists are read from the database every 5 seconds,
+and still work while the daemon is stopped.
+
+Keys:
+  1 2 3, Tab      focus Applications, Hosts or Traffic types
+  p, P            next or previous period: 5m 1h 24h 7d 30d cycle
+  b               rates in Mb/s or MB/s
+  Up Down, j k    scroll the focused list (PgUp PgDn, Home End, g G)
+  q, Ctrl-C       quit
+
+  --period P      the period to start on (default 24h)
+  --ascii         ASCII instead of unicode blocks (also used when the
+                  locale is not UTF-8)
+  --bytes         start with rates in MB/s instead of Mb/s
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+
+Needs a terminal: run from a script, it exits with status 2. Colour is
+used unless NO_COLOR is set.
 [exit 0]
 

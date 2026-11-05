@@ -31,7 +31,10 @@ int main(int argc, char** argv) {
     env.now = std::int64_t(std::time(nullptr));
     // For the test suite only: measure periods from a fixed clock, so output
     // against a fixture database is reproducible. Not documented on purpose.
-    if (const char* fixed = std::getenv("BANDSIGHT_CLI_NOW")) env.now = std::atoll(fixed);
+    if (const char* fixed = std::getenv("BANDSIGHT_CLI_NOW")) {
+        env.now = std::atoll(fixed);
+        env.clock_fixed = true;
+    }
 
     const std::vector<std::string> args(argv, argv + argc);
     return bandsight::cli::run(args, env);

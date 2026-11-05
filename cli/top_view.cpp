@@ -351,6 +351,27 @@ std::string fit(const std::string& s, std::size_t w, bool unicode) {
     return cat(prefix(s, w - 1), unicode ? "…" : "~");
 }
 
+// Words of s in lines of at most w cells; a word longer than w is cut.
+std::vector<std::string> wrap(const std::string& s, std::size_t w) {
+    std::vector<std::string> lines;
+    std::string cur;
+    std::size_t at = 0;
+    while (at < s.size()) {
+        const std::size_t sp = s.find(' ', at);
+        const std::string word = s.substr(at, sp == std::string::npos ? std::string::npos : sp - at);
+        at = sp == std::string::npos ? s.size() : sp + 1;
+        if (word.empty()) continue;
+        if (!cur.empty() && text_width(cur) + 1 + text_width(word) > w) {
+            lines.push_back(cur);
+            cur.clear();
+        }
+        if (!cur.empty()) cur += ' ';
+        cur += word;
+    }
+    if (!cur.empty()) lines.push_back(cur);
+    return lines;
+}
+
 std::string rjust(const std::string& s, std::size_t w) {
     const std::size_t n = text_width(s);
     std::string out;
@@ -410,7 +431,8 @@ struct Painter {
         if (v.state != DaemonSocket::State::Running) {
             ln.add("no live rates", Tone::Dim);
         } else if (!v.have_rate) {
-            ln.add("waiting for the first sample", Tone::Dim);
+            ln.add(v.spark.empty() ? "waiting for the first sample" : "no sample in the last few seconds",
+                   Tone::Dim);
         } else {
             ln.add("down", Tone::Down).add(" ").add(rjust(rate(v.down), 11));
             ln.spaces(3).add("up", Tone::Up).add(" ").add(rjust(rate(v.up), 11));
@@ -535,11 +557,13 @@ struct Painter {
         std::uint64_t biggest = 0;
         for (const PanelRow& r : p.rows) biggest = std::max(biggest, r.down + r.up);
 
+        const auto empty = wrap(p.empty_text, cols > 2 ? cols - 2 : 1);
         for (std::size_t i = 0; i < vis; ++i) {
             Line ln = line();
             const std::size_t at = first + i;
-            if (p.rows.empty() && i == 0) {
-                ln.add(" ").add(p.empty_text, Tone::Dim);
+            if (p.rows.empty()) {
+                // Wrapped over the panel's rows: an error can be long.
+                if (i < empty.size()) ln.add(" ").add(empty[i], Tone::Dim);
             } else if (at < p.rows.size()) {
                 const PanelRow& r = p.rows[at];
                 const Tone t = r.muted ? Tone::Dim : Tone::Plain;
