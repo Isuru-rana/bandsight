@@ -25,9 +25,25 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 pkg_check_modules(LIBBPF REQUIRED IMPORTED_TARGET libbpf)
 
+# Everything a reader of the daemon's database and socket needs, with no Qt and
+# no BPF: the history queries, the cycle arithmetic, unit formatting, service
+# names, the Unattributed and LAN/WAN rules, and the live-frame decoder. The GUI
+# and bandsight-cli are both built on it, so the two cannot disagree.
+add_library(bandsight_common STATIC
+    core/cycle.cpp
+    core/units.cpp
+    core/service_names.cpp
+    core/unattributed.cpp
+    core/host_zone.cpp
+    core/app_labels.cpp
+    daemon/time_buckets.cpp
+    daemon/json_value.cpp
+)
+target_include_directories(bandsight_common PUBLIC ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/daemon)
+target_link_libraries(bandsight_common PUBLIC PkgConfig::SQLITE3)
+
 # Sources are appended by later tasks.
 add_library(bandsight_core STATIC
-    daemon/time_buckets.cpp
     daemon/iface_class.cpp
     daemon/app_name.cpp
     daemon/config_policy.cpp
@@ -38,7 +54,6 @@ add_library(bandsight_core STATIC
     daemon/resolver.cpp
     daemon/collector.cpp
     daemon/json_frame.cpp
-    daemon/json_value.cpp
     daemon/dns_names.cpp
     daemon/resolved_monitor.cpp
     daemon/unix_socket_control.cpp
@@ -48,7 +63,7 @@ add_library(bandsight_core STATIC
 )
 target_include_directories(bandsight_core PUBLIC ${CMAKE_SOURCE_DIR}/daemon
                            ${CMAKE_BINARY_DIR}/generated)
-target_link_libraries(bandsight_core PUBLIC PkgConfig::SQLITE3 PkgConfig::LIBBPF)
+target_link_libraries(bandsight_core PUBLIC bandsight_common PkgConfig::SQLITE3 PkgConfig::LIBBPF)
 
 add_executable(bandsightd daemon/main.cpp)
 target_link_libraries(bandsightd PRIVATE bandsight_core)
@@ -127,8 +142,6 @@ if(BANDSIGHT_BUILD_GUI)
       gui/app_labels.cpp
       gui/host_class.cpp
       gui/smooth.cpp
-      gui/quota.cpp
-      gui/unattributed.cpp
       gui/service_names.cpp
       gui/quota_bar.cpp
       gui/settings_dialog.cpp
@@ -156,16 +169,14 @@ if(BANDSIGHT_BUILD_GUI)
       gui/tray_icon.cpp
       gui/main_window.cpp
       gui/resources/bandsight.qrc
-      # HistoryStore builds its zero-fill grid with the daemon's bucket_start /
-      # bucket_next so the two agree on where a bucket begins. This one file is
-      # compiled in directly rather than linking bandsight_core, which would drag
-      # sqlite, libbpf and the BPF skeleton into the GUI for two functions whose
-      # only dependency is <ctime>. The test target gets them from bandsight_core.
-      daemon/time_buckets.cpp
   )
   target_include_directories(bandsight PRIVATE ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon
                              ${CMAKE_BINARY_DIR}/generated)
-  target_link_libraries(bandsight PRIVATE Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
+  # bandsight_common, not bandsight_core: the latter would drag libbpf and the
+  # BPF skeleton into the GUI. bandsight_common's only dependency is sqlite3,
+  # which the daemon in the same package already needs.
+  target_link_libraries(bandsight PRIVATE bandsight_common
+                        Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
   add_dependencies(bandsight bandsight_git_commit)
   install(TARGETS bandsight RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
@@ -200,7 +211,7 @@ install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/bandsight)
 option(BANDSIGHT_BUILD_TESTS "Build the unit tests" ON)
 if(BANDSIGHT_BUILD_TESTS)
   enable_testing()
-  add_executable(test_attribution tests/test_attribution.cpp gui/unattributed.cpp)
+  add_executable(test_attribution tests/test_attribution.cpp)
   target_include_directories(test_attribution PRIVATE ${CMAKE_SOURCE_DIR}/gui)
   target_link_libraries(test_attribution PRIVATE bandsight_core)
   add_test(NAME attribution COMMAND test_attribution)
@@ -240,7 +251,7 @@ if(BANDSIGHT_BUILD_TESTS)
 
   if(BANDSIGHT_BUILD_GUI)
     add_executable(test_history_query tests/test_history_query.cpp
-        gui/history_store.cpp gui/quota.cpp)
+        gui/history_store.cpp)
     set_target_properties(test_history_query PROPERTIES AUTOMOC ON)
     target_include_directories(test_history_query PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_history_query PRIVATE bandsight_core Qt6::Core Qt6::Sql)
@@ -252,7 +263,7 @@ if(BANDSIGHT_BUILD_TESTS)
     add_test(NAME service_names COMMAND test_service_names)
 
     add_executable(test_gui_logic tests/test_gui_logic.cpp gui/history_store.cpp
-        gui/quota.cpp gui/frame_codec.cpp gui/host_class.cpp)
+        gui/frame_codec.cpp gui/host_class.cpp)
     set_target_properties(test_gui_logic PROPERTIES AUTOMOC ON)
     target_include_directories(test_gui_logic PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_gui_logic PRIVATE bandsight_core Qt6::Core Qt6::Sql Qt6::Network)
@@ -273,7 +284,7 @@ if(BANDSIGHT_BUILD_TESTS)
       set_target_properties(test_${_t} PROPERTIES AUTOMOC ON AUTORCC ON)
       target_include_directories(test_${_t} PRIVATE
           ${CMAKE_SOURCE_DIR}/gui ${CMAKE_SOURCE_DIR}/daemon ${CMAKE_BINARY_DIR}/generated)
-      target_link_libraries(test_${_t} PRIVATE
+      target_link_libraries(test_${_t} PRIVATE bandsight_common
           Qt6::Widgets Qt6::Charts Qt6::Sql Qt6::Network)
       add_dependencies(test_${_t} bandsight_git_commit)
       add_test(NAME ${_t} COMMAND test_${_t})

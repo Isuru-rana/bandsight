@@ -445,7 +445,7 @@ void HistoryStore::queryQuota(qint64 now) {
         QSqlQuery q(db_);
         q.prepare(QStringLiteral(
             "SELECT MAX(ts) FROM iface_samples WHERE res=86400 AND ts>=? AND ts<?"));
-        q.addBindValue(c.start);
+        q.addBindValue(qint64(c.start));
         q.addBindValue(now);
         // The day after the last closed one, by the daemon's own bucket
         // rule: + 86400 lands an hour early on a 25-hour day, counting that

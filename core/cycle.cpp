@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "quota.h"
+#include "core/cycle.h"
 
 #include <ctime>
 
-namespace bandsight::gui {
+namespace bandsight::core {
 
 namespace {
 
@@ -11,18 +11,18 @@ namespace {
 // including DST transitions and offsets that are not whole hours - decide what
 // midnight means. tm_isdst = -1 asks mktime to work it out; hardcoding 0 shifts
 // every cycle boundary by an hour for half the year.
-qint64 local_midnight(int year, int month, int day) {
+std::int64_t local_midnight(int year, int month, int day) {
     std::tm tm{};
     tm.tm_year = year - 1900;
     tm.tm_mon = month - 1;
     tm.tm_mday = day;
     tm.tm_isdst = -1;
-    return qint64(std::mktime(&tm));
+    return std::int64_t(std::mktime(&tm));
 }
 
 }  // namespace
 
-Cycle cycle_for(qint64 now, int day) {
+Cycle cycle_for(std::int64_t now, int day) {
     if (day < 1) day = 1;
     if (day > 28) day = 28;
 
@@ -45,21 +45,21 @@ Cycle cycle_for(qint64 now, int day) {
             local_midnight(next_year, next_month, day)};
 }
 
-double cycle_elapsed_fraction(const Cycle& c, qint64 now) {
-    const qint64 span = c.end - c.start;
+double cycle_elapsed_fraction(const Cycle& c, std::int64_t now) {
+    const std::int64_t span = c.end - c.start;
     if (span <= 0) return 1.0;
     if (now <= c.start) return 0.0;
     if (now >= c.end) return 1.0;
     return double(now - c.start) / double(span);
 }
 
-quint64 project_to_cycle_end(quint64 used, const Cycle& c, qint64 now) {
+std::uint64_t project_to_cycle_end(std::uint64_t used, const Cycle& c, std::int64_t now) {
     const double f = cycle_elapsed_fraction(c, now);
     // Under an hour of a month is ~0.0014 of the cycle; dividing by it turns a
     // single large download into a projected terabyte. Report what is measured
     // until there is enough of the cycle to extrapolate from.
     if (f < 0.01) return used;
-    return quint64(double(used) / f);
+    return std::uint64_t(double(used) / f);
 }
 
-}  // namespace bandsight::gui
+}  // namespace bandsight::core

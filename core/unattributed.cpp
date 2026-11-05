@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "unattributed.h"
+#include "core/unattributed.h"
 
-namespace bandsight::gui {
+namespace bandsight::core {
 
 namespace {
 constexpr std::uint64_t kMinBytes = 1'000'000;   // the "> 1 MB" floor
@@ -18,4 +18,4 @@ Unattributed unattributed(std::uint64_t headline_down, std::uint64_t headline_up
     return u;
 }
 
-}  // namespace bandsight::gui
+}  // namespace bandsight::core
