@@ -1,0 +1,557 @@
+### apps, default period
+$ bandsight-cli apps --db $TMP/fixture.db
+Applications, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+APPLICATION             DOWN        UP     TOTAL
+Firefox             656.5 MB   13.3 MB  669.9 MB
+node (v24.1.0/bin)  210.0 MB    4.2 MB  214.2 MB
+ssh                  15.2 MB   93.8 MB  109.0 MB
+Spotify              84.0 MB    1.2 MB   85.2 MB
+curl                 26.0 MB  310.0 kB   26.3 MB
+tailscaled            8.4 MB    7.9 MB   16.3 MB
+node (usr/bin)        3.3 MB  120.0 kB    3.4 MB
+chronyd               9.0 kB    9.0 kB   18.0 kB
+Unattributed        421.0 MB   21.1 MB  442.1 MB
+
+Total on measured interfaces: 1.42 GB down, 141.9 MB up, 1.57 GB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### apps, 7 days, folded
+$ bandsight-cli apps --db $TMP/fixture.db --period 7d --limit 3
+Applications, last 7 days (2026-10-29 12:00 to 2026-11-05 12:00)
+
+APPLICATION             DOWN        UP     TOTAL
+Firefox              1.91 GB   46.4 MB   1.95 GB
+Spotify             494.0 MB   10.2 MB  504.2 MB
+node (v24.1.0/bin)  210.0 MB    4.2 MB  214.2 MB
+7 others            256.9 MB  114.9 MB  371.9 MB
+Unattributed        941.0 MB   47.0 MB  988.0 MB
+
+Total on measured interfaces: 3.81 GB down, 222.7 MB up, 4.03 GB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### apps, 30 days, binary units
+$ bandsight-cli apps --db $TMP/fixture.db --period 30d --binary
+Applications, last 30 days (2026-10-06 12:00 to 2026-11-05 12:00)
+
+APPLICATION              DOWN         UP      TOTAL
+Firefox              4.76 GiB   83.3 MiB   4.84 GiB
+apt                 743.9 MiB    2.0 MiB  745.9 MiB
+Spotify             471.1 MiB    9.7 MiB  480.8 MiB
+node (v24.1.0/bin)  200.3 MiB    4.0 MiB  204.3 MiB
+ssh                  14.5 MiB   89.5 MiB  104.0 MiB
+node (usr/bin)       93.7 MiB    1.5 MiB   95.3 MiB
+git                  58.2 MiB    7.1 MiB   65.2 MiB
+Thunderbird          45.8 MiB    3.7 MiB   49.5 MiB
+curl                 24.8 MiB  302.7 KiB   25.1 MiB
+tailscaled            8.0 MiB    7.5 MiB   15.5 MiB
+1 other               8.8 KiB    8.8 KiB   17.6 KiB
+Unattributed        897.4 MiB   44.9 MiB  942.3 MiB
+
+Total on measured interfaces: 7.25 GiB down, 253.5 MiB up, 7.50 GiB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### apps, billing cycle
+$ bandsight-cli apps --db $TMP/fixture.db --period cycle
+Applications, this billing cycle (2026-11-01 00:00 to 2026-11-05 12:00)
+
+APPLICATION             DOWN        UP     TOTAL
+Firefox             656.5 MB   13.3 MB  669.9 MB
+node (v24.1.0/bin)  210.0 MB    4.2 MB  214.2 MB
+ssh                  15.2 MB   93.8 MB  109.0 MB
+node (usr/bin)       98.3 MB    1.6 MB   99.9 MB
+Spotify              84.0 MB    1.2 MB   85.2 MB
+git                  61.0 MB    7.4 MB   68.4 MB
+Thunderbird          48.0 MB    3.9 MB   51.9 MB
+curl                 26.0 MB  310.0 kB   26.3 MB
+tailscaled            8.4 MB    7.9 MB   16.3 MB
+chronyd               9.0 kB    9.0 kB   18.0 kB
+Unattributed        421.0 MB   21.1 MB  442.1 MB
+
+Total on measured interfaces: 1.63 GB down, 154.7 MB up, 1.78 GB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### apps, explicit range
+$ bandsight-cli apps --db $TMP/fixture.db --from "2026-11-05 06:00" --to 2026-11-05T11:00
+Applications (2026-11-05 06:00 to 2026-11-05 11:00)
+
+APPLICATION       DOWN       UP     TOTAL
+Firefox       640.0 MB  12.5 MB  652.5 MB
+node          210.0 MB   4.2 MB  214.2 MB
+ssh            15.0 MB  92.0 MB  107.0 MB
+tailscaled      8.4 MB   7.9 MB   16.3 MB
+Unattributed  380.0 MB  19.0 MB  399.0 MB
+
+Total on measured interfaces: 1.25 GB down, 135.6 MB up, 1.39 GB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### apps, 5 minutes (per-second rows)
+$ bandsight-cli apps --db $TMP/fixture.db --period 5m
+Applications, last 5 minutes (2026-11-05 11:55 to 2026-11-05 12:00)
+
+APPLICATION      DOWN        UP    TOTAL
+Firefox       16.5 MB  850.0 kB  17.4 MB
+ssh          220.0 kB    1.8 MB   2.0 MB
+curl           1.3 MB   25.0 kB   1.3 MB
+
+Total on measured interfaces: 18.0 MB down, 2.7 MB up, 20.6 MB in all
+[exit 0]
+
+### apps, nothing in the period
+$ bandsight-cli apps --db $TMP/fixture.db --from 2026-01-01 --to 2026-01-02
+Applications (2026-01-01 00:00 to 2026-01-02 00:00)
+
+No application traffic in this period.
+
+Total on measured interfaces: 0 B down, 0 B up, 0 B in all
+[exit 0]
+
+### hosts
+$ bandsight-cli hosts --db $TMP/fixture.db
+Hosts, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+HOST                     ADDRESS          NET      DOWN        UP     TOTAL
+one.one.one.one          2606:4700::1111  WAN  644.5 MB   12.7 MB  657.2 MB
+registry.npmjs.org       104.16.0.35      WAN  213.3 MB    4.3 MB  217.6 MB
+192.168.1.10                              LAN   15.2 MB   93.8 MB  109.0 MB
+spclient.wg.spotify.com  35.186.224.25    WAN   84.0 MB    1.2 MB   85.2 MB
+151.101.1.69                              WAN   27.3 MB  335.0 kB   27.6 MB
+No peer address                           -      8.4 MB    7.9 MB   16.3 MB
+www.google.com           142.250.72.14    WAN   12.0 MB  640.0 kB   12.6 MB
+time.cloudflare.com      162.159.200.1    WAN    9.0 kB    9.0 kB   18.0 kB
+Unattributed                                   419.8 MB   21.0 MB  440.8 MB
+
+Total on measured interfaces: 1.42 GB down, 141.9 MB up, 1.57 GB in all
+[exit 0]
+
+### hosts, one application
+$ bandsight-cli hosts --db $TMP/fixture.db --app node --period 7d
+Hosts for node, last 7 days (2026-10-29 12:00 to 2026-11-05 12:00)
+
+HOST                ADDRESS      NET      DOWN      UP     TOTAL
+registry.npmjs.org  104.16.0.35  WAN  308.3 MB  5.8 MB  314.1 MB
+[exit 0]
+
+### hosts, an application with no traffic
+$ bandsight-cli hosts --db $TMP/fixture.db --app nosuch
+Hosts for nosuch, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+No host traffic for 'nosuch' in this period.
+[exit 0]
+
+### hosts, 30 days, folded
+$ bandsight-cli hosts --db $TMP/fixture.db --period 30d --limit 5
+Hosts, last 30 days (2026-10-06 12:00 to 2026-11-05 12:00)
+
+HOST                     ADDRESS          NET      DOWN        UP     TOTAL
+one.one.one.one          2606:4700::1111  WAN   3.84 GB   53.7 MB   3.90 GB
+www.google.com           142.250.72.14    WAN   1.26 GB   33.6 MB   1.30 GB
+archive.ubuntu.com       91.189.91.81     WAN  780.0 MB    2.1 MB  782.1 MB
+spclient.wg.spotify.com  35.186.224.25    WAN  494.0 MB   10.2 MB  504.2 MB
+registry.npmjs.org       104.16.0.35      WAN  308.3 MB    5.8 MB  314.1 MB
+6 others                                       158.6 MB  113.3 MB  271.9 MB
+
+Total on measured interfaces: 7.79 GB down, 265.8 MB up, 8.05 GB in all
+Note: hosts are recorded since 2026-10-16 00:00; earlier traffic has no host breakdown.
+[exit 0]
+
+### types
+$ bandsight-cli types --db $TMP/fixture.db
+Traffic types, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+SERVICE  PORTS        DOWN       UP     TOTAL
+QUIC     443/udp  644.5 MB  12.7 MB  657.2 MB
+HTTPS    443/tcp  336.6 MB   6.5 MB  343.0 MB
+SSH      22/tcp    15.2 MB  93.8 MB  109.0 MB
+Other               8.4 MB   7.9 MB   16.3 MB
+NTP      123/udp    9.0 kB   9.0 kB   18.0 kB
+[exit 0]
+
+### types, 30 days (recording began inside it)
+$ bandsight-cli types --db $TMP/fixture.db --period 30d
+Traffic types, last 30 days (2026-10-06 12:00 to 2026-11-05 12:00)
+
+SERVICE  PORTS        DOWN        UP     TOTAL
+QUIC     443/udp   3.84 GB   53.7 MB   3.90 GB
+HTTPS    443/tcp   2.09 GB   50.0 MB   2.14 GB
+HTTP     80/tcp   780.0 MB    2.1 MB  782.1 MB
+SSH      22/tcp    76.2 MB  101.2 MB  177.4 MB
+Mail     993/tcp   48.0 MB    3.9 MB   51.9 MB
+Other               8.4 MB    7.9 MB   16.3 MB
+NTP      123/udp    9.0 kB    9.0 kB   18.0 kB
+
+Note: traffic types are recorded since 2026-10-16 12:00; earlier traffic has no type.
+[exit 0]
+
+### ifaces
+$ bandsight-cli ifaces --db $TMP/fixture.db
+Interfaces, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+INTERFACE  KIND      MEASURED     DOWN        UP    TOTAL
+eth0       physical  yes       1.34 GB  140.7 MB  1.48 GB
+wlan0      wifi      yes       84.0 MB    1.2 MB  85.2 MB
+
+Total on measured interfaces: 1.42 GB down, 141.9 MB up, 1.57 GB in all
+4 interfaces not measured (loopback, VPN, virtual); --all lists them.
+[exit 0]
+
+### ifaces, all
+$ bandsight-cli ifaces --db $TMP/fixture.db --all --period 7d
+Interfaces, last 7 days (2026-10-29 12:00 to 2026-11-05 12:00)
+
+INTERFACE    KIND      MEASURED     DOWN        UP    TOTAL
+docker0      virtual   no            0 B       0 B      0 B
+eth0         physical  yes       2.06 GB  179.5 MB  2.24 GB
+lo           loopback  no            0 B       0 B      0 B
+other-netns  virtual   no            0 B       0 B      0 B
+tailscale0   vpn       no            0 B       0 B      0 B
+wlan0        wifi      yes       1.74 GB   43.2 MB  1.79 GB
+
+Total on measured interfaces: 3.81 GB down, 222.7 MB up, 4.03 GB in all
+[exit 0]
+
+### status, daemon not running
+$ bandsight-cli status --db $TMP/fixture.db --socket $TMP/none
+bandsightd  not running; showing history only
+Database    $TMP/fixture.db
+Cycle       1 Nov 2026 to 1 Dec 2026 (renews on day 1)
+Used        1.78 GB of 100.00 GB cap (1%)
+Projected   11.89 GB by 1 Dec 2026
+[exit 0]
+
+### types, old database
+$ bandsight-cli types --db $TMP/v2.db
+Traffic types, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+This database has no traffic types. Update bandsightd to see traffic types.
+[exit 0]
+
+### hosts, old database
+$ bandsight-cli hosts --db $TMP/v2.db
+Hosts, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+This database has no host breakdown. Update bandsightd to collect hosts.
+[exit 0]
+
+### missing database
+$ bandsight-cli apps --db $TMP/missing.db
+[stderr]
+Cannot read $TMP/missing.db: the file does not exist. Is bandsightd installed and started? (sudo systemctl enable --now bandsightd)
+[exit 1]
+
+### not a database
+$ bandsight-cli ifaces --db $TMP/junk.db
+[stderr]
+Cannot read $TMP/junk.db: it is not a bandsight database.
+[exit 1]
+
+### unreadable database
+$ bandsight-cli status --db $TMP/locked.db --socket $TMP/none
+[stderr]
+Cannot read $TMP/locked.db: add yourself to the 'bandsight' group (sudo usermod -aG bandsight $USER), then log in again.
+[exit 1]
+
+### unknown command
+$ bandsight-cli frobnicate
+[stderr]
+Unknown command 'frobnicate'.
+Run 'bandsight-cli --help' for usage.
+[exit 2]
+
+### unknown period
+$ bandsight-cli apps --period 2w
+[stderr]
+Unknown period '2w'. Use 5m, 30m, 1h, 6h, 12h, 24h, 7d, 30d or cycle.
+Run 'bandsight-cli apps --help' for usage.
+[exit 2]
+
+### option for another command
+$ bandsight-cli types --app firefox
+[stderr]
+'types' does not take '--app'.
+Run 'bandsight-cli types --help' for usage.
+[exit 2]
+
+### --to without --from
+$ bandsight-cli hosts --to 2026-11-05
+[stderr]
+'--to' needs '--from'.
+Run 'bandsight-cli hosts --help' for usage.
+[exit 2]
+
+### bad date
+$ bandsight-cli apps --from "5 Nov"
+[stderr]
+Cannot read '--from 5 Nov'. Use e.g. 2026-11-05 or 2026-11-05T14:30.
+Run 'bandsight-cli apps --help' for usage.
+[exit 2]
+
+### no command
+$ bandsight-cli
+[stderr]
+No command given.
+Run 'bandsight-cli --help' for usage.
+[exit 2]
+
+### status, daemon running, rates in bytes
+$ bandsight-cli status --socket $TMP/sock --bytes
+bandsightd  running, version 0.5.0
+Database    $TMP/fixture.db
+Cycle       1 Nov 2026 to 1 Dec 2026 (renews on day 1)
+Used        1.78 GB of 100.00 GB cap (1%)
+Projected   11.89 GB by 1 Dec 2026
+Now         down 1.3 MB/s, up 31.8 kB/s
+[exit 0]
+
+### apps, database named by the daemon
+$ bandsight-cli apps --socket $TMP/sock --limit 2
+Applications, last 24 hours (2026-11-04 12:00 to 2026-11-05 12:00)
+
+APPLICATION             DOWN        UP     TOTAL
+Firefox             656.5 MB   13.3 MB  669.9 MB
+node (v24.1.0/bin)  210.0 MB    4.2 MB  214.2 MB
+6 others            136.9 MB  103.3 MB  240.3 MB
+Unattributed        421.0 MB   21.1 MB  442.1 MB
+
+Total on measured interfaces: 1.42 GB down, 141.9 MB up, 1.57 GB in all
+Unattributed: counted on the interfaces but not credited to any application
+(virtual machines, containers, kernel traffic such as WireGuard).
+[exit 0]
+
+### live, three lines
+$ bandsight-cli live --socket $TMP/sock --count 3
+12:00:21  down   10.0 Mb/s  up  254.0 kb/s
+12:00:22  down   11.0 Mb/s  up  250.0 kb/s
+12:00:23  down   12.0 Mb/s  up  254.0 kb/s
+[stderr]
+Live rates from bandsightd 0.5.0. Ctrl-C to stop.
+[exit 0]
+
+### live, two-second average
+$ bandsight-cli live --socket $TMP/sock --interval 2 --count 2
+12:00:22  down   10.5 Mb/s  up  252.0 kb/s
+12:00:24  down   12.5 Mb/s  up  252.0 kb/s
+[stderr]
+Live rates from bandsightd 0.5.0. Ctrl-C to stop.
+[exit 0]
+
+### live, daemon stops
+$ bandsight-cli live --socket $TMP/sock
+12:00:29  down   10.0 Mb/s  up  254.0 kb/s
+12:00:30  down   11.0 Mb/s  up  250.0 kb/s
+[stderr]
+Live rates from bandsightd 0.5.0. Ctrl-C to stop.
+bandsightd closed the connection.
+[exit 1]
+
+### live, daemon not running
+$ bandsight-cli live --socket $TMP/none
+[stderr]
+bandsightd is not running (no daemon at $TMP/none). Start it with: sudo systemctl start bandsightd
+[exit 1]
+
+### help
+$ bandsight-cli --help
+Usage: bandsight-cli <command> [options]
+       bandsight-cli --version | --help | <command> --help
+
+Network usage recorded by bandsightd, for terminals and headless machines.
+History commands read the database and work while the daemon is stopped.
+
+Commands:
+  status          daemon, database, billing cycle and current rate
+  apps            usage per application
+  hosts           usage per remote host
+  types           usage per kind of traffic (HTTPS, DNS, ...)
+  ifaces          usage per network interface
+  live            current rates until Ctrl-C
+
+Periods (apps, hosts, types, ifaces):
+  --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
+                  (the current billing cycle so far)
+  --from T        start of an explicit period, local time:
+                  2026-11-05, 2026-11-05T14:30 or "2026-11-05 14:30:15"
+  --to T          its end (default: now)
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+  -V, --version   show the version
+
+Reading the database needs membership of the 'bandsight' group:
+  sudo usermod -aG bandsight $USER   (then log in again)
+
+Exit status: 0 success, 1 runtime error, 2 usage error.
+Colour and bars are used only on a terminal, and never when NO_COLOR is set.
+[exit 0]
+
+### status help
+$ bandsight-cli status --help
+Usage: bandsight-cli status [options]
+
+Whether bandsightd is running and its version, the database in use, the
+billing cycle (used, cap and projection) and the current rate.
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+
+### apps help
+$ bandsight-cli apps --help
+Usage: bandsight-cli apps [--period P | --from T [--to T]] [--limit N]
+
+Download and upload per application over a period, largest first.
+Counts the measured interfaces (wired, Wi-Fi) and sockets with no route.
+Unattributed: traffic the interfaces carried that no application owns
+(virtual machines, containers, kernel traffic such as WireGuard), shown
+when it is over 5% of the total and over 1 MB.
+
+  --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
+                  (the current billing cycle so far)
+  --from T        start of an explicit period, local time:
+                  2026-11-05, 2026-11-05T14:30 or "2026-11-05 14:30:15"
+  --to T          its end (default: now)
+  --limit N       rows to list before folding the rest into "N others"
+                  (default 10, 0 for all)
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+
+### hosts help
+$ bandsight-cli hosts --help
+Usage: bandsight-cli hosts [--period P | --from T [--to T]] [--app NAME] [--limit N]
+
+Download and upload per remote host, largest first, with its name when
+one was seen and whether it is on the local network (LAN) or not (WAN).
+
+  --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
+                  (the current billing cycle so far)
+  --from T        start of an explicit period, local time:
+                  2026-11-05, 2026-11-05T14:30 or "2026-11-05 14:30:15"
+  --to T          its end (default: now)
+  --app NAME      only this application's hosts: the name 'apps' shows,
+                  the executable's file name, or its full path
+  --limit N       rows to list before folding the rest into "N others"
+                  (default 10, 0 for all)
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+
+### types help
+$ bandsight-cli types --help
+Usage: bandsight-cli types [--period P | --from T [--to T]]
+
+Download and upload per kind of traffic (HTTPS, QUIC, DNS, SSH...), by the
+protocol and well-known port of each connection.
+
+  --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
+                  (the current billing cycle so far)
+  --from T        start of an explicit period, local time:
+                  2026-11-05, 2026-11-05T14:30 or "2026-11-05 14:30:15"
+  --to T          its end (default: now)
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+
+### ifaces help
+$ bandsight-cli ifaces --help
+Usage: bandsight-cli ifaces [--period P | --from T [--to T]] [--all]
+
+Download and upload per network interface. Only wired and Wi-Fi interfaces
+are measured toward totals: loopback, VPN and virtual interfaces carry
+traffic that is counted again on a physical one, or never leaves the
+machine.
+
+  --period P      5m, 30m, 1h, 6h, 12h, 24h (default), 7d, 30d, or cycle
+                  (the current billing cycle so far)
+  --from T        start of an explicit period, local time:
+                  2026-11-05, 2026-11-05T14:30 or "2026-11-05 14:30:15"
+  --to T          its end (default: now)
+  --all           also list the interfaces that are not measured
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+
+### live help
+$ bandsight-cli live --help
+Usage: bandsight-cli live [--interval S] [--count N]
+
+Current download and upload rates from bandsightd, until Ctrl-C. Only
+reads from the daemon; never changes anything.
+
+  --interval S    seconds per line, averaged (default 1)
+  --count N       stop after N lines
+
+Common options:
+  --json          machine-readable output: one JSON object (live: one per
+                  line), raw byte counts, ISO 8601 times; the README lists
+                  the keys
+  --bytes         rates in bytes (MB/s) instead of bits (Mb/s)
+  --binary        volumes in binary units (GiB) instead of decimal (GB)
+  --db PATH       read this database instead of the daemon's
+                  (default /var/lib/bandsight/bandsight.db)
+  --socket PATH   the daemon's socket (default /run/bandsightd/sock)
+  -h, --help      show help
+[exit 0]
+

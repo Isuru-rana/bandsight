@@ -23,6 +23,7 @@
 #include "legacy/legacy_history_store.h"
 #include "legacy/legacy_logic.h"
 #include "app_labels.h"
+#include "args.h"
 #include "host_class.h"
 #include "service_names.h"
 #include "units.h"
@@ -255,6 +256,21 @@ void names_and_zones() {
     }
 }
 
+// bandsight-cli's periods are the GUI's windows, at the same resolutions.
+void periods() {
+    const struct { const char* cli; gui::Window w; } same[] = {
+        {"5m", gui::Window::FiveMin},  {"30m", gui::Window::ThirtyMin}, {"1h", gui::Window::Hour},
+        {"6h", gui::Window::SixHour},  {"12h", gui::Window::TwelveHour}, {"24h", gui::Window::Day},
+        {"7d", gui::Window::Week},     {"30d", gui::Window::Month},
+    };
+    CHECK(cli::named_periods().size() == std::size(same));
+    for (const auto& p : same) {
+        const cli::NamedPeriod* n = cli::find_period(p.cli);
+        CHECK(n && n->res == gui::window_spec(p.w).res && n->range_s == gui::window_spec(p.w).range_s);
+        CHECK(n && QString::fromLatin1(n->label) == gui::window_label(p.w));
+    }
+}
+
 void labels() {
     const auto app = [](const char* exe, const char* name) {
         gui::AppTotal t;
@@ -284,5 +300,6 @@ int main(int argc, char** argv) {
     formatting();
     names_and_zones();
     labels();
+    periods();
     return g_failures == 0 ? 0 : 1;
 }

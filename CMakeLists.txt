@@ -258,6 +258,26 @@ if(BANDSIGHT_BUILD_TESTS)
   target_link_libraries(test_history_db PRIVATE bandsight_core)
   add_test(NAME history_db COMMAND test_history_db)
 
+  # The real bandsight-cli binary against the fixture and a fake daemon socket:
+  # golden text (tests/cli_golden.txt), parsed --json, exit codes, errors.
+  add_executable(test_bandsight_cli tests/test_bandsight_cli.cpp)
+  target_link_libraries(test_bandsight_cli PRIVATE bandsight_cli bandsight_core util)
+  target_compile_definitions(test_bandsight_cli PRIVATE
+      BANDSIGHT_TEST_PROJECT_VERSION="${PROJECT_VERSION}")
+  add_dependencies(test_bandsight_cli bandsight-cli)
+  add_test(NAME bandsight_cli COMMAND test_bandsight_cli $<TARGET_FILE:bandsight-cli>
+           ${CMAKE_SOURCE_DIR}/tests/cli_golden.txt)
+
+  # A fresh -DBANDSIGHT_BUILD_GUI=OFF configure and build in a scratch
+  # directory, with Qt hidden from CMake: the CLI and its tests must build and
+  # pass there, and the binary must not link Qt. Slower than the rest (it
+  # rebuilds the core and the BPF object), so it is labelled.
+  find_program(BANDSIGHT_SH sh)
+  add_test(NAME cli_without_qt
+           COMMAND ${BANDSIGHT_SH} ${CMAKE_SOURCE_DIR}/tests/cli_without_qt.sh
+                   ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/cli-without-qt)
+  set_tests_properties(cli_without_qt PROPERTIES LABELS slow TIMEOUT 900)
+
   # Runs the real bandsightd binary: --version and --help must exit before
   # anything is opened, and a bad flag must not start the daemon.
   add_executable(test_cli tests/test_cli.cpp)
@@ -276,7 +296,8 @@ if(BANDSIGHT_BUILD_TESTS)
     add_test(NAME history_query COMMAND test_history_query)
 
     # The QtSql HistoryStore and the Qt formatting as they were before moving
-    # onto core/ (tests/legacy/), against the current ones on the same inputs.
+    # onto core/ (tests/legacy/), against the current ones on the same inputs;
+    # and bandsight-cli's periods against the GUI's windows.
     add_executable(test_query_parity tests/test_query_parity.cpp
         tests/legacy/legacy_history_store.cpp tests/legacy/legacy_logic.cpp
         gui/history_store.cpp gui/units.cpp gui/service_names.cpp gui/host_class.cpp
@@ -284,7 +305,7 @@ if(BANDSIGHT_BUILD_TESTS)
     set_target_properties(test_query_parity PROPERTIES AUTOMOC ON)
     target_include_directories(test_query_parity PRIVATE ${CMAKE_SOURCE_DIR}/gui
                                ${CMAKE_SOURCE_DIR}/tests)
-    target_link_libraries(test_query_parity PRIVATE bandsight_core
+    target_link_libraries(test_query_parity PRIVATE bandsight_core bandsight_cli
                           Qt6::Core Qt6::Sql Qt6::Network)
     add_test(NAME query_parity COMMAND test_query_parity)
 
