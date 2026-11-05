@@ -5,20 +5,20 @@ Origin: Bandsight
 Label: Bandsight
 Suite: stable
 Codename: stable
-Date: Tue, 03 Nov 2026 15:21:25 +0000
+Date: Thu, 05 Nov 2026 05:46:11 +0000
 Architectures: amd64
 Components: main
 Description: Bandsight network usage monitor
 MD5Sum:
- 8b989e5fa4ebf33c6da497d244767db2             2361 main/binary-amd64/Packages
- f36a8dbd133f3a62bcd813a1147ef3e9              750 main/binary-amd64/Packages.gz
+ c18d9d6ed875aca75a2e7835edf07c46             3148 main/binary-amd64/Packages
+ e133adc93f312f83ef5b38a1522fa8aa              866 main/binary-amd64/Packages.gz
 SHA256:
- fc1e470dfdca1802ab5466a25ad726bffdf6f1279e6794c3042e91c305f00220             2361 main/binary-amd64/Packages
- 0d049152f0a36b290076b58da7ce1694d7e0b3a4e08ca8b4052eefb216437414              750 main/binary-amd64/Packages.gz
+ 8caa9608d8e62f625909f03c0ce0666337f9a444a696a02a6bba7180b94dca87             3148 main/binary-amd64/Packages
+ d0b7aa00d7806f695037dec99adb852f45f1b974a0d6e637467811e806ebcb2a              866 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCaun79QAKCRC0NUXfBE9R
-WPvjAP0a0MUOf68mszOzfY7U5V/p/owH716+mQ5cuqA+nRgrJwD/YhxqQIOHJHVd
-CSDfYNCIxMBaoaCX9tfrCVIFAmNoVQ4=
-=BLrm
+iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCauwYIwAKCRC0NUXfBE9R
+WIlFAQD+434ElD05HnpWxGhihEhF2AXiCFTNM3W4pG0o5W023gEAm8gJ2NJqXLwv
+4txs+6OevwbdhLnBTQh85fMXlENPXAU=
+=RwxO
 -----END PGP SIGNATURE-----
