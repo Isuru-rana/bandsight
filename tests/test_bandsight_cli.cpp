@@ -16,8 +16,10 @@
 #include <grp.h>
 #include <poll.h>
 #include <pty.h>
+#include <termios.h>
 #include <sqlite3.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
@@ -34,6 +36,7 @@
 #include <thread>
 
 #include "args.h"
+#include "terminal.h"
 #include "check.h"
 #include "fixture_db.h"
 #include "json_frame.h"
@@ -573,6 +576,230 @@ void terminal_checks(const std::string& db) {
     CHECK(json.find('\033') == std::string::npos && json.find("\"command\":\"apps\"") != std::string::npos);
 }
 
+// --- top -------------------------------------------------------------------------
+
+// `bandsight-cli top` on a pseudo-terminal this test holds both ends of, so it
+// can type, resize, signal, and read the terminal's settings after the program
+// has gone.
+class PtyChild {
+public:
+    PtyChild(const std::vector<std::string>& args, const std::vector<std::string>& extra_env = {},
+             int cols = 80, int rows = 24) {
+        winsize ws{};
+        ws.ws_col = static_cast<unsigned short>(cols);
+        ws.ws_row = static_cast<unsigned short>(rows);
+        CHECK(::openpty(&master_, &slave_, nullptr, nullptr, &ws) == 0);
+        ::tcgetattr(slave_, &before_);
+        pid_ = ::fork();
+        if (pid_ == 0) {
+            ::setsid();
+            ::ioctl(slave_, TIOCSCTTY, 0);
+            ::dup2(slave_, 0);
+            ::dup2(slave_, 1);
+            ::dup2(slave_, 2);
+            ::close(master_);
+            // extra_env first: getenv() takes the first of two with one name.
+            std::vector<std::string> env = extra_env;
+            for (const char* e : {"TZ=UTC", "NO_COLOR=1", "LC_ALL=C", "TERM=xterm"}) env.push_back(e);
+            std::string now = "BANDSIGHT_CLI_NOW=";
+            now += std::to_string(kFixtureNow);
+            env.push_back(now);
+            std::vector<char*> envp, argv;
+            for (auto& e : env) envp.push_back(e.data());
+            envp.push_back(nullptr);
+            std::vector<std::string> a{g_cli, "top"};
+            a.insert(a.end(), args.begin(), args.end());
+            for (auto& x : a) argv.push_back(x.data());
+            argv.push_back(nullptr);
+            ::execve(g_cli.c_str(), argv.data(), envp.data());
+            ::_exit(98);
+        }
+    }
+    ~PtyChild() {
+        if (pid_ > 0 && code_ == -2) {
+            ::kill(pid_, SIGKILL);
+            ::waitpid(pid_, nullptr, 0);
+        }
+        ::close(master_);
+        ::close(slave_);
+    }
+
+    // Reads until `text` has appeared since the last mark(), up to ms.
+    bool wait_for(const std::string& text, int ms = 5000) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+        while (out_.find(text, mark_) == std::string::npos) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                std::fprintf(stderr, "top: no '%s' on the screen\n", text.c_str());
+                return false;
+            }
+            pump(50);
+        }
+        return true;
+    }
+    void mark() { mark_ = out_.size(); }
+    void type(const std::string& keys) {
+        mark();
+        CHECK(::write(master_, keys.data(), keys.size()) == ssize_t(keys.size()));
+    }
+    void resize(int cols, int rows) {
+        mark();
+        winsize ws{};
+        ws.ws_col = static_cast<unsigned short>(cols);
+        ws.ws_row = static_cast<unsigned short>(rows);
+        ::ioctl(master_, TIOCSWINSZ, &ws);   // the kernel sends SIGWINCH
+    }
+    void signal(int sig) { ::kill(pid_, sig); }
+
+    // The exit code, -1 for a signal death, -2 if it did not exit in ms.
+    int wait_exit(int ms = 5000) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+        for (;;) {
+            pump(20);
+            int status = 0;
+            if (::waitpid(pid_, &status, WNOHANG) == pid_) {
+                pump(50);
+                code_ = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+                return code_;
+            }
+            if (std::chrono::steady_clock::now() > deadline) return -2;
+        }
+    }
+    const std::string& out() const { return out_; }
+    // Settings as they were before the program started, and the screen back.
+    bool restored() const {
+        termios now{};
+        ::tcgetattr(slave_, &now);
+        const bool mode = now.c_lflag == before_.c_lflag && now.c_iflag == before_.c_iflag &&
+                          now.c_oflag == before_.c_oflag;
+        const std::string leave = cli::Terminal::kLeave;
+        const bool screen = out_.size() >= leave.size() &&
+                            out_.compare(out_.size() - leave.size(), leave.size(), leave) == 0;
+        return mode && screen && out_.rfind(cli::Terminal::kEnter, 0) == 0;
+    }
+
+private:
+    void pump(int ms) {
+        pollfd p{master_, POLLIN, 0};
+        while (::poll(&p, 1, ms) > 0) {
+            char buf[8192];
+            const ssize_t n = ::read(master_, buf, sizeof buf);
+            if (n <= 0) return;
+            out_.append(buf, std::size_t(n));
+            ms = 0;
+        }
+    }
+
+    int master_ = -1, slave_ = -1;
+    pid_t pid_ = -1;
+    int code_ = -2;
+    termios before_{};
+    std::string out_;
+    std::size_t mark_ = 0;
+};
+
+void top_checks(const std::string& db) {
+    const std::string sock = g_tmp + "/top-sock";
+    const std::string hello = encode_hello(db, {{2, "eth0", "physical"}, {3, "wlan0", "wifi"}}, "0.5.0");
+    FakeDaemon d(sock, hello, recorded_samples(10));
+    {
+        // The database the daemon names, live rates, then q.
+        PtyChild t({"--socket", sock});
+        CHECK(t.wait_for("bandsightd 0.5.0 running"));
+        CHECK(t.wait_for("Now     down"));
+        CHECK(t.wait_for("> 1 Applications  last 24 hours"));
+        CHECK(t.wait_for("Firefox"));
+        CHECK(t.wait_for("units (Mb/s)"));
+        t.type("G");   // the end of the list, where Unattributed is
+        CHECK(t.wait_for("Unattributed"));
+        t.type("q");
+        CHECK(t.wait_exit() == 0);
+        CHECK(t.restored());
+    }
+    {
+        // Keys: period, units, focus; then Ctrl-C (a key in raw mode).
+        PtyChild t({"--socket", sock});
+        CHECK(t.wait_for("last 24 hours"));
+        t.type("p");
+        CHECK(t.wait_for("last 7 days"));
+        CHECK(t.wait_for("period (7d)"));
+        t.type("b");
+        CHECK(t.wait_for("units (MB/s)"));
+        t.type("3");
+        CHECK(t.wait_for("> 3 Traffic types"));
+        t.type("\t");
+        CHECK(t.wait_for("> 1 Applications"));
+        t.type("\033[B");   // Down, as the terminal sends it
+        CHECK(t.wait_for("2-4 of"));
+        t.type("\x03");
+        CHECK(t.wait_exit() == 0);
+        CHECK(t.restored());
+    }
+    {
+        // A resize redraws at the new size; SIGINT from outside ends it.
+        PtyChild t({"--db", db, "--socket", sock});
+        CHECK(t.wait_for("1 Applications"));
+        t.resize(100, 30);
+        CHECK(t.wait_for("\033[30;1H"));
+        CHECK(t.wait_for("q quit"));
+        t.signal(SIGINT);
+        CHECK(t.wait_exit() == 0);
+        CHECK(t.restored());
+    }
+    {
+        // SIGTERM and SIGHUP restore the terminal too.
+        for (const int sig : {SIGTERM, SIGHUP}) {
+            PtyChild t({"--db", db, "--socket", sock});
+            CHECK(t.wait_for("1 Applications"));
+            t.signal(sig);
+            CHECK(t.wait_exit() == 0);
+            CHECK(t.restored());
+        }
+    }
+    // Read only: across all of them, not one byte reached the daemon.
+    CHECK(d.clients() >= 5);
+    CHECK(d.bytes_received() == 0);
+
+    {
+        // The daemon down: the header says so, the history still works.
+        PtyChild t({"--db", db, "--socket", g_tmp + "/none", "--period", "30d"});
+        CHECK(t.wait_for("bandsightd is not running - history only"));
+        CHECK(t.wait_for("last 30 days"));
+        CHECK(t.wait_for("Firefox"));
+        CHECK(t.wait_for("no live data while bandsightd is not running"));
+        t.type("q");
+        CHECK(t.wait_exit() == 0);
+        CHECK(t.restored());
+    }
+    {
+        // A missing database: said on screen, and q still works. Wide, so the
+        // message (which carries the temp path, longer with a 7-digit pid)
+        // stays on one line for wait_for().
+        PtyChild t({"--db", g_tmp + "/missing.db", "--socket", g_tmp + "/none"}, {}, 200, 24);
+        CHECK(t.wait_for("the file does not exist"));
+        t.type("q");
+        CHECK(t.wait_exit() == 0);
+        CHECK(t.restored());
+    }
+    {
+        // A UTF-8 locale gets unicode; colour only without NO_COLOR.
+        PtyChild u({"--db", db, "--socket", g_tmp + "/none"}, {"LC_ALL=C.UTF-8"});
+        CHECK(u.wait_for("▶ 1 Applications"));
+        CHECK(u.out().find("\033[34m") == std::string::npos);
+        u.type("q");
+        CHECK(u.wait_exit() == 0);
+        PtyChild a({"--db", db, "--socket", g_tmp + "/none", "--ascii"}, {"LC_ALL=C.UTF-8"});
+        CHECK(a.wait_for("> 1 Applications"));
+        a.type("q");
+        CHECK(a.wait_exit() == 0);
+        CHECK(a.out().find("█") == std::string::npos);
+    }
+    // Not a terminal: a message and exit 2, nothing drawn.
+    golden("top, not a terminal", {"top", "--db", db}, 2);
+    golden("top, a period it does not step through", {"top", "--period", "30m"}, 2);
+    golden("--ascii on another command", {"apps", "--ascii"}, 2);
+    golden("top, --json", {"top", "--json"}, 2);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -656,10 +883,11 @@ int main(int argc, char** argv) {
     daemon_checks(db);
     json_checks(db);
     terminal_checks(db);
+    top_checks(db);
 
     // Help and version: complete, exit 0.
     golden("help", {"--help"}, 0);
-    for (const char* c : {"status", "apps", "hosts", "types", "ifaces", "live"})
+    for (const char* c : {"status", "apps", "hosts", "types", "ifaces", "live", "top"})
         golden(std::string(c) + " help", {c, "--help"}, 0);
     {
         const Result v = run({"--version"});

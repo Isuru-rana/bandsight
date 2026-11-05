@@ -75,7 +75,7 @@ include(GNUInstallDirs)
 # The command-line client. bandsight_common only: no Qt, no BPF, so it builds
 # and runs on a headless machine (-DBANDSIGHT_BUILD_GUI=OFF).
 add_library(bandsight_cli STATIC cli/args.cpp cli/output.cpp cli/daemon_socket.cpp
-            cli/commands.cpp)
+            cli/commands.cpp cli/terminal.cpp cli/top_input.cpp cli/top_view.cpp cli/top.cpp)
 target_include_directories(bandsight_cli PUBLIC ${CMAKE_SOURCE_DIR}/cli
                            ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(bandsight_cli PUBLIC bandsight_common)
@@ -267,6 +267,21 @@ if(BANDSIGHT_BUILD_TESTS)
   add_dependencies(test_bandsight_cli bandsight-cli)
   add_test(NAME bandsight_cli COMMAND test_bandsight_cli $<TARGET_FILE:bandsight-cli>
            ${CMAKE_SOURCE_DIR}/tests/cli_golden.txt)
+
+  # `bandsight-cli top`: the terminal guard on a pseudo-terminal.
+  add_executable(test_top_terminal tests/test_top_terminal.cpp)
+  target_link_libraries(test_top_terminal PRIVATE bandsight_cli util)
+  target_include_directories(test_top_terminal PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+  add_test(NAME top_terminal COMMAND test_top_terminal)
+
+  # `bandsight-cli top` without a terminal: keys, state, periods, and the
+  # screen rendered from the fixture into fixed-size buffers (golden text,
+  # tests/top_golden.txt).
+  add_executable(test_top tests/test_top.cpp)
+  target_link_libraries(test_top PRIVATE bandsight_cli bandsight_core)
+  target_include_directories(test_top PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+  add_test(NAME top COMMAND test_top ${CMAKE_SOURCE_DIR}/tests/top_golden.txt
+           ${CMAKE_BINARY_DIR}/test-top)
 
   # A fresh -DBANDSIGHT_BUILD_GUI=OFF configure and build in a scratch
   # directory, with Qt hidden from CMake: the CLI and its tests must build and

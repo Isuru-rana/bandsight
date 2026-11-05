@@ -39,7 +39,7 @@ int range_res(std::int64_t from, std::int64_t now);
 // trailing "Z" or "+05:30" gives the zone explicitly. nullopt when unparsable.
 std::optional<std::int64_t> parse_datetime(const std::string& s);
 
-enum class Command { None, Status, Apps, Hosts, Types, Ifaces, Live };
+enum class Command { None, Status, Apps, Hosts, Types, Ifaces, Live, Top };
 const char* command_name(Command c);
 
 struct Options {
@@ -59,6 +59,7 @@ struct Options {
     bool all = false;      // ifaces --all
     double interval = 1;   // live --interval, seconds
     long count = 0;        // live --count, 0: until Ctrl-C
+    bool ascii = false;    // top --ascii
 };
 
 constexpr const char* kDefaultDb = "/var/lib/bandsight/bandsight.db";
