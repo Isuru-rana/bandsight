@@ -98,9 +98,16 @@ std::string local_date(std::int64_t t) {
 }
 
 std::string iso_time(std::int64_t t) {
-    std::string s = strf("%Y-%m-%dT%H:%M:%S%z", t);   // ...+0530
-    if (s.size() >= 5) s.insert(s.size() - 2, ":");
-    return s;
+    const std::string s = strf("%Y-%m-%dT%H:%M:%S%z", t);   // ...+0530
+    if (s.size() < 5) return s;
+    // Appended piece by piece, not s.insert(): GCC 12 reports a false
+    // -Wrestrict overlap on insert into a string (Debian 12 builds -Werror).
+    std::string out;
+    out.reserve(s.size() + 1);
+    out.append(s, 0, s.size() - 2);
+    out += ':';
+    out.append(s, s.size() - 2, 2);
+    return out;
 }
 
 std::string json_escape(const std::string& in) {
@@ -129,7 +136,13 @@ std::string json_escape(const std::string& in) {
 void Json::key(const char* k) {
     if (!first_.back()) s_ += ',';
     first_.back() = false;
-    if (k) s_ += "\"" + json_escape(k) + "\":";
+    if (k) {
+        // Appended in pieces: "literal" + std::string trips a false GCC 12
+        // -Wrestrict, fatal under -Werror on Debian 12.
+        s_ += '"';
+        s_ += json_escape(k);
+        s_ += "\":";
+    }
 }
 
 Json& Json::begin_object(const char* k) {
@@ -156,7 +169,9 @@ Json& Json::end_array() {
 }
 Json& Json::field(const char* k, const std::string& v) {
     key(k);
-    s_ += "\"" + json_escape(v) + "\"";
+    s_ += '"';
+    s_ += json_escape(v);
+    s_ += '"';
     return *this;
 }
 Json& Json::field(const char* k, std::uint64_t v) {
@@ -187,7 +202,9 @@ Json& Json::value(std::int64_t v) {
 
 Json& Json::value(const std::string& v) {
     key(nullptr);
-    s_ += "\"" + json_escape(v) + "\"";
+    s_ += '"';
+    s_ += json_escape(v);
+    s_ += '"';
     return *this;
 }
 
