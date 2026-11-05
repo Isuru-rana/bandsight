@@ -162,7 +162,7 @@ MainWindow::MainWindow(QString socket_path, QString db_path, QWidget* parent)
 
     // --- history worker -----------------------------------------------------
     // open(), every query and ~HistoryStore must all run on the thread that owns
-    // the QSqlDatabase connection. moveToThread makes that this thread; the
+    // the database handle. moveToThread makes that this thread; the
     // finished->deleteLater pair makes the destructor run there too, which is
     // why history_ has no parent - a parent would delete it from here instead.
     history_->moveToThread(&history_thread_);
@@ -450,8 +450,8 @@ void MainWindow::onHello(const HelloInfo& h) {
 void MainWindow::startOpen() {
     if (open_requested_) return;
     open_requested_ = true;
-    // Queued onto the worker: a QSqlDatabase must be opened on the thread that
-    // will use and close it, and this call is on the GUI thread.
+    // Queued onto the worker: the database handle must be opened on the thread
+    // that will use and close it, and this call is on the GUI thread.
     QMetaObject::invokeMethod(history_,
                               [h = history_, p = db_path_] { h->open(p); });
 }

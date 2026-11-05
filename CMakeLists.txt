@@ -265,6 +265,19 @@ if(BANDSIGHT_BUILD_TESTS)
     target_link_libraries(test_history_query PRIVATE bandsight_core Qt6::Core Qt6::Sql)
     add_test(NAME history_query COMMAND test_history_query)
 
+    # The QtSql HistoryStore and the Qt formatting as they were before moving
+    # onto core/ (tests/legacy/), against the current ones on the same inputs.
+    add_executable(test_query_parity tests/test_query_parity.cpp
+        tests/legacy/legacy_history_store.cpp tests/legacy/legacy_logic.cpp
+        gui/history_store.cpp gui/units.cpp gui/service_names.cpp gui/host_class.cpp
+        gui/app_labels.cpp)
+    set_target_properties(test_query_parity PROPERTIES AUTOMOC ON)
+    target_include_directories(test_query_parity PRIVATE ${CMAKE_SOURCE_DIR}/gui
+                               ${CMAKE_SOURCE_DIR}/tests)
+    target_link_libraries(test_query_parity PRIVATE bandsight_core
+                          Qt6::Core Qt6::Sql Qt6::Network)
+    add_test(NAME query_parity COMMAND test_query_parity)
+
     add_executable(test_service_names tests/test_service_names.cpp gui/service_names.cpp)
     target_include_directories(test_service_names PRIVATE ${CMAKE_SOURCE_DIR}/gui)
     target_link_libraries(test_service_names PRIVATE bandsight_core Qt6::Core)

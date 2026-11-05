@@ -1,75 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "history_store.h"
 
-#include <algorithm>
-#include <cmath>
-
 #include <QDateTime>
 #include <QDebug>
-#include <QHash>
-#include <QSqlError>
-#include <QSqlQuery>
-#include <QStringList>
-#include <QVariant>
-
-#include "time_buckets.h"
-
-#include "quota.h"
 
 namespace bandsight::gui {
 
 namespace {
-QString in_list(const QSet<int>& ids) {   // ints only - no injection surface
-    QStringList l;
-    for (int id : ids) l << QString::number(id);
-    return l.join(',');
+
+QString qs(const std::string& s) { return QString::fromStdString(s); }
+
+// The query failed: core keeps SQLite's message, and a warning is the only
+// trace a failure leaves (no signal carries it - see querySeries).
+void warn(const char* what, const core::HistoryDb& db) {
+    qWarning() << "bandsight:" << what << QString::fromStdString(db.last_query_error());
 }
 
-// The zero-fill grid must land on exactly the timestamps the daemon writes, so
-// it is generated with the daemon's own bucket_start/bucket_next rather than
-// re-derived arithmetically. res=1 and res=60 are plain modulo, but res=3600 is
-// floored to the LOCAL hour via mktime - in any zone whose offset is not a whole
-// number of hours (UTC+5:30 here) a `ts / 3600 * 3600` grid is offset from every
-// stored row by the sub-hour part of the zone, and the res=3600 tier reads as
-// permanently empty. Deriving the grid from the same function that produced the
-// rows makes the two agree by construction, in every zone and across DST.
-qint64 grid_start(qint64 now, int res, qint64 range_s) {
-    return bandsight::bucket_start(now - range_s, res);
-}
-// One past the newest CLOSED bucket: rollup_tier only writes buckets strictly
-// before bucket_start(now), so this is exactly where the data ends.
-qint64 grid_end(qint64 now, int res) { return bandsight::bucket_start(now, res); }
 }  // namespace
 
-// A QSqlDatabase member is a refcounted handle, not an owner: closing it is not
-// enough. The connection stays in Qt's global registry under conn_name_, so a
-// later HistoryStore that lands on the same heap/stack address (which is what
-// happens across test cases) builds the same name and addDatabase() prints
-// "duplicate connection name ... old connection removed", after which the first
-// object's still-open handle is dangling in the registry. Unregistering here
-// keeps the registry exactly as empty as the object graph.
-void HistoryStore::closeDb() {
-    if (conn_name_.isEmpty()) return;
-    if (db_.isValid() && db_.isOpen()) db_.close();
-    db_ = QSqlDatabase();  // drop our copy before removing, or Qt warns
-    QSqlDatabase::removeDatabase(conn_name_);
-    conn_name_.clear();
-}
-
-HistoryStore::~HistoryStore() { closeDb(); }
-
 void HistoryStore::open(const QString& db_path) {
-    closeDb();  // reopening must not orphan the previous connection
-    conn_name_ = QStringLiteral("history_%1").arg(quintptr(this));
-    db_ = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), conn_name_);
-    db_.setDatabaseName(db_path);
-    // SQLite itself enforces read-only even though the filesystem allows
-    // writes (spec §3).
-    db_.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
-    if (!db_.open()) {
-        const QString reason = db_.lastError().text();
-        closeDb();  // a failed open still registered the name
-        emit openFailed(db_path, reason);
+    // SQLite itself enforces read-only even though the filesystem allows writes
+    // (spec §3). Check::None: a file that opens but cannot be read is reported
+    // by the first query, as it always has been in the GUI.
+    if (!db_.open(db_path.toStdString(), core::HistoryDb::Check::None)) {
+        emit openFailed(db_path, qs(db_.error()));
         return;
     }
     emit opened(db_path);
@@ -77,16 +31,8 @@ void HistoryStore::open(const QString& db_path) {
 
 void HistoryStore::querySeries(Window w, QSet<int> ifindexes, qint64 now) {
     const WindowSpec spec = window_spec(w);
-    const qint64 start = grid_start(now, spec.res, spec.range_s);
-    const qint64 end = grid_end(now, spec.res);
-
-    QHash<qint64, SeriesPoint> rows;
-    QSqlQuery q(db_);
-    q.prepare(QStringLiteral(
-        "SELECT ts, SUM(rx), SUM(tx) FROM iface_samples "
-        "WHERE res=? AND ts>=? AND iface_id IN (%1) GROUP BY ts").arg(in_list(ifindexes)));
-    q.addBindValue(spec.res);
-    q.addBindValue(start);
+    const core::Span span = core::window_span(spec.res, spec.range_s, now);
+    const std::vector<int> ids(ifindexes.begin(), ifindexes.end());
     // No queryFailed signal, by the brief's explicit decision. The consequence
     // is worth stating because the two queries degrade DIFFERENTLY: a failure
     // here still emits a full, correctly-sized, all-zero series - which is
@@ -94,22 +40,16 @@ void HistoryStore::querySeries(Window w, QSet<int> ifindexes, qint64 now) {
     // queryIfaceTotals emits an EMPTY vector. So a caller cannot detect "the
     // query failed" from either payload, and must not dispatch any query
     // before opened() has arrived. This warning is the only trace it leaves.
-    if (q.exec()) {
-        while (q.next())
-            rows.insert(q.value(0).toLongLong(),
-                        {q.value(0).toLongLong(),
-                         q.value(1).toULongLong(), q.value(2).toULongLong()});
-    } else {
-        qWarning() << "bandsight: series query failed, emitting an all-zero"
-                   << "series:" << q.lastError().text();
-    }
+    bool ok = true;
+    const auto points = db_.series(spec.res, span.from, span.to, ids, &ok);
+    if (!ok) warn("series query failed, emitting an all-zero series:", db_);
 
-    // Zero-fill: one point per bucket. An idle bucket is a zero observation,
-    // never a gap (spec §4.3) - and the count equals the point budget exactly.
+    // Zero-filled by core: one point per bucket. An idle bucket is a zero
+    // observation, never a gap (spec §4.3) - and the count equals the point
+    // budget exactly.
     QVector<SeriesPoint> out;
-    out.reserve(int(spec.range_s / spec.res));
-    for (qint64 ts = start; ts < end; ts = bandsight::bucket_next(ts, spec.res))
-        out.push_back(rows.value(ts, SeriesPoint{ts, 0, 0}));
+    out.reserve(qsizetype(points.size()));
+    for (const auto& p : points) out.push_back({p.ts, p.rx, p.tx});
     emit series(w, out);
 }
 
@@ -119,370 +59,114 @@ void HistoryStore::queryIfaceTotals(Window w, qint64 now) {
     // unbounded query fetched every row from the window start to the end of the
     // table - about 30x overfetch on the Day window - and would also count a
     // future-dated row written across a clock jump.
-    queryIfaceTotalsRange(grid_start(now, spec.res, spec.range_s),
-                          grid_end(now, spec.res), spec.res);
+    const core::Span span = core::window_span(spec.res, spec.range_s, now);
+    queryIfaceTotalsRange(span.from, span.to, spec.res);
 }
 
 void HistoryStore::queryIfaceTotalsRange(qint64 from, qint64 to, int res) {
-    const qint64 start = from;
-
     QVector<IfaceTotal> out;
-    QSqlQuery q(db_);
-    // Grouped by name, not ifindex: a replugged adapter is one interface under
-    // several ifindexes. The kind is the newest ifindex's - SQLite takes a bare
-    // column from the row that MAX() picked.
-    q.prepare(QStringLiteral(
-        "SELECT MAX(i.id), i.name, i.kind, "
-        "COALESCE(SUM(s.rx),0), COALESCE(SUM(s.tx),0), GROUP_CONCAT(DISTINCT i.id) "
-        "FROM ifaces i LEFT JOIN iface_samples s "
-        "  ON s.iface_id = i.id AND s.res=? AND s.ts>=? AND s.ts<=? "
-        "WHERE i.id != 0 GROUP BY i.name ORDER BY i.name"));
-    q.addBindValue(res);
-    q.addBindValue(start);
-    q.addBindValue(to);
-    if (q.exec()) {
-        while (q.next()) {
+    if (const auto totals = db_.iface_totals(from, to, res)) {
+        for (const core::IfaceTotal& c : *totals) {
             IfaceTotal t;
-            t.id = q.value(0).toInt();
-            t.name = q.value(1).toString();
-            t.kind = q.value(2).toString();
-            t.rx = q.value(3).toULongLong();
-            t.tx = q.value(4).toULongLong();
-            for (const QString& id : q.value(5).toString().split(QLatin1Char(',')))
-                t.ids.push_back(id.toInt());
+            t.id = c.id;
+            t.name = qs(c.name);
+            t.kind = qs(c.kind);
+            t.rx = c.rx;
+            t.tx = c.tx;
+            for (int id : c.ids) t.ids.push_back(id);
             out.push_back(t);
         }
     } else {
         // Degrades to an EMPTY vector, unlike querySeries, which degrades to a
         // full all-zero series (see the note there). Same caller rule: no query
         // may be dispatched before opened() has arrived.
-        qWarning() << "bandsight: iface totals query failed, emitting an empty"
-                   << "table:" << q.lastError().text();
+        warn("iface totals query failed, emitting an empty table:", db_);
     }
     emit ifaceTotals(out);
 }
 
-// Restricted to the interface kinds the Interfaces tab calls measured (plus row
-// 0, below), and for the same reason (spec §2.2): loopback and tunnel bytes are
-// either counted again on the physical interface underneath or never leave the
-// machine. Summing
-// them here made a python process that talks to itself the largest consumer on
-// the system by three orders of magnitude - 4.83 TB in thirty days against 17 GB
-// of real traffic - while the Interfaces tab on the next tab along correctly
-// showed lo as "not measured". The kinds are spelled out in SQL rather than
-// filtered in C++ so the database does the work; kind_is_measured() is the same
-// rule and the two must be changed together.
-//
-// Row 0 ("unknown") IS included. Dropping it hid most of the traffic of
-// route-less sockets - unconnected UDP: WebRTC calls, tailscaled's WireGuard,
-// some QUIC - which the Total above counted from the interface counters: 87% of
-// a 4.5 h selection was missing from the rows with nothing on screen saying so.
-// The daemon now credits loopback datagrams to lo even without a route, which
-// is what makes this safe from the loopback problem above. Container sockets
-// are stored under their own "other-netns" row (kind virtual) and stay out.
-//
-// Unlike queryIfaceTotals this INNER JOINs on app_samples, and deliberately so: an interface
-// with no samples is a fact worth showing ("not measured", spec §2.2), but the
-// apps table accumulates every executable ever seen - 161 of them on the
-// development machine - and listing the ones that moved nothing this window
-// would bury the handful that did, which is exactly the failure U2 documents on
-// the Interfaces tab.
+// Restricted to the interface kinds the Interfaces tab calls measured, plus row
+// 0 ("unknown"): see core::HistoryDb::app_totals for why, and kind_is_measured()
+// for the same rule on this side - the two must be changed together.
 void HistoryStore::queryAppTotals(Window w, qint64 now) {
     const WindowSpec spec = window_spec(w);
-    queryAppTotalsRange(grid_start(now, spec.res, spec.range_s),
-                        grid_end(now, spec.res), spec.res);
+    const core::Span span = core::window_span(spec.res, spec.range_s, now);
+    queryAppTotalsRange(span.from, span.to, spec.res);
 }
 
 void HistoryStore::queryAppTotalsRange(qint64 from, qint64 to, int res) {
-    const qint64 start = from;
-
     QVector<AppTotal> out;
-    bool ok = true;
-    QSqlQuery q(db_);
-    q.prepare(QStringLiteral(
-        "SELECT a.id, a.exe, a.name, SUM(s.rx), SUM(s.tx) "
-        "FROM apps a JOIN app_samples s ON s.app_id = a.id "
-        "JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
-        "GROUP BY a.id HAVING SUM(s.rx) + SUM(s.tx) > 0 "
-        "ORDER BY SUM(s.rx) + SUM(s.tx) DESC"));
-    q.addBindValue(res);
-    q.addBindValue(start);
-    q.addBindValue(to);
-    if (q.exec()) {
-        while (q.next()) {
-            AppTotal t;
-            t.id = q.value(0).toInt();
-            t.exe = q.value(1).toString();
-            t.name = q.value(2).toString();
-            t.rx = q.value(3).toULongLong();
-            t.tx = q.value(4).toULongLong();
-            out.push_back(t);
-        }
+    const auto totals = db_.app_totals(from, to, res);
+    if (totals) {
+        for (const core::AppTotal& c : *totals)
+            out.push_back({c.id, qs(c.exe), qs(c.name), c.rx, c.tx});
     } else {
-        // Empty vector on failure, like queryIfaceTotals - see the note there
-        // for why neither payload lets a caller detect the failure, and why no
-        // query may be dispatched before opened().
-        qWarning() << "bandsight: app totals query failed, emitting an empty"
-                   << "table:" << q.lastError().text();
-        ok = false;
+        // Empty vector on failure, like queryIfaceTotals; ok=false says so.
+        warn("app totals query failed, emitting an empty table:", db_);
     }
-    emit appTotals(out, ok);
+    emit appTotals(out, totals.has_value());
 }
-
-namespace {
-// Host rows are minute-grained at best (no res=1 host tier), so the seconds
-// tier maps to minutes. Longer tiers match the apps query exactly.
-int host_res(int res) { return res == 1 ? 60 : res; }
-}  // namespace
 
 void HistoryStore::queryHostTotals(Window w, qint64 now) {
     const WindowSpec spec = window_spec(w);
-    // To `now`, not grid_end: the daemon writes the current minute live, so
-    // stopping at the last closed bucket would hide up to a minute of hosts.
-    emitHostPairs(now - spec.range_s, now, now, spec.res);
+    // To `now`, not the end of the grid: the daemon writes the current minute
+    // live, so stopping at the last closed bucket would hide up to a minute.
+    emitHostPairs(db_.host_pairs_window(spec.res, spec.range_s, now));
 }
 
 void HistoryStore::queryHostTotalsRange(qint64 from, qint64 to, int res) {
-    // A selection's last minute row holds that whole minute - unless it is the
-    // live minute, which only holds up to now.
-    const int hres = host_res(res);
-    const qint64 data_end =
-        std::min<qint64>(bandsight::bucket_next(bandsight::bucket_start(to, hres), hres),
-                         QDateTime::currentSecsSinceEpoch());
-    emitHostPairs(from, to, std::max(data_end, to), res);
+    emitHostPairs(db_.host_pairs_range(from, to, res, QDateTime::currentSecsSinceEpoch()));
 }
 
-void HistoryStore::emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res) {
-    const int hres = host_res(res);
-    const qint64 start = bandsight::bucket_start(from, hres);   // widen to whole buckets
-
-    // Detected by column, not by version number: what matters is whether the
-    // table this query reads has the shape it reads.
-    QSqlQuery probe(db_);
-    const bool collected =
-        probe.exec(QStringLiteral(
-            "SELECT COUNT(*) FROM pragma_table_info('app_host_samples') WHERE name='iface_id'"))
-        && probe.next() && probe.value(0).toInt() == 1;
-    if (!collected) {
+void HistoryStore::emitHostPairs(const core::HostPairs& r) {
+    if (!r.collected) {
         emit hostPairs({}, false, 0);
         return;
     }
-
-    // Recording begins when a v3 daemon is installed; app history is older.
-    qint64 since = 0;
-    if (probe.exec(QStringLiteral("SELECT MIN(ts) FROM app_host_samples")) && probe.next() &&
-        !probe.value(0).isNull()) {
-        const qint64 first = probe.value(0).toLongLong();
-        if (first > start) since = first;
-    }
-
-    // Seconds-tier periods read whole-minute rows, which span more than the
-    // period (up to twice, on the 1-minute window). Unscaled, excluding one of
-    // two equal hosts would remove most of the headline. Prorating assumes an
-    // even rate within the span; it is an estimate, and only these short
-    // periods need it - longer ones read the same tier as the apps.
-    double scale = 1.0;
-    if (hres != res && data_end > start) {
-        scale = std::clamp(double(to - from) / double(data_end - start), 0.0, 1.0);
-    }
-
+    if (!r.ok) warn("host totals query failed, emitting an empty table:", db_);
     QVector<AppHostTotal> out;
-    QSqlQuery q(db_);
-    q.prepare(QStringLiteral(
-        "SELECT a.id, a.exe, a.name, h.id, h.ip, h.hostname, SUM(s.rx), SUM(s.tx) "
-        "FROM app_host_samples s "
-        "JOIN apps a ON a.id = s.app_id "
-        "JOIN hosts h ON h.id = s.host_id "
-        "JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
-        "GROUP BY a.id, h.id HAVING SUM(s.rx) + SUM(s.tx) > 0"));
-    q.addBindValue(hres);
-    q.addBindValue(start);
-    q.addBindValue(to);
-    if (q.exec()) {
-        while (q.next()) {
-            AppHostTotal t;
-            t.app_id = q.value(0).toInt();
-            t.exe = q.value(1).toString();
-            t.app_name = q.value(2).toString();
-            t.host_id = q.value(3).toInt();
-            t.ip = q.value(4).toString();
-            t.hostname = q.value(5).toString();
-            t.rx = quint64(std::llround(double(q.value(6).toULongLong()) * scale));
-            t.tx = quint64(std::llround(double(q.value(7).toULongLong()) * scale));
-            out.push_back(t);
-        }
-    } else {
-        // Empty on failure, like the other totals queries - see queryIfaceTotals.
-        qWarning() << "bandsight: host totals query failed, emitting an empty"
-                   << "table:" << q.lastError().text();
-    }
-    emit hostPairs(out, true, since);
+    out.reserve(qsizetype(r.pairs.size()));
+    for (const core::AppHostTotal& c : r.pairs)
+        out.push_back({c.app_id, qs(c.exe), qs(c.app_name), c.host_id, qs(c.ip),
+                       qs(c.hostname), c.rx, c.tx});
+    // A failed query still reads as collected, with no pairs: that is what the
+    // Hosts column has always been told.
+    emit hostPairs(out, true, r.since);
 }
 
 void HistoryStore::queryTypeTotals(Window w, qint64 now) {
     const WindowSpec spec = window_spec(w);
-    emitTypeTotals(now - spec.range_s, now, now, spec.res);   // see queryHostTotals
+    emitTypeTotals(db_.type_totals_window(spec.res, spec.range_s, now));   // see queryHostTotals
 }
 
 void HistoryStore::queryTypeTotalsRange(qint64 from, qint64 to, int res) {
-    const int tres = host_res(res);   // see queryHostTotalsRange
-    const qint64 data_end =
-        std::min<qint64>(bandsight::bucket_next(bandsight::bucket_start(to, tres), tres),
-                         QDateTime::currentSecsSinceEpoch());
-    emitTypeTotals(from, to, std::max(data_end, to), res);
+    emitTypeTotals(db_.type_totals_range(from, to, res, QDateTime::currentSecsSinceEpoch()));
 }
 
-// The same tiers, widening and proration as emitHostPairs, and the same
-// interface filter as the Apps and Hosts queries.
-void HistoryStore::emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int res) {
-    const int tres = host_res(res);
-    const qint64 start = bandsight::bucket_start(from, tres);
-
-    QSqlQuery probe(db_);
-    const bool collected =
-        probe.exec(QStringLiteral(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='type_samples'"))
-        && probe.next() && probe.value(0).toInt() == 1;
-    if (!collected) {
+void HistoryStore::emitTypeTotals(const core::TypeTotals& r) {
+    if (!r.collected) {
         emit typeTotals({}, false, 0, true);
         return;
     }
-
-    // When recording began, as the daemon stored it on its first type write.
-    // Not MIN(ts): rolled-up rows carry the start of their hour or day, which
-    // reads up to a day early. The fallback, for a database written before
-    // the key existed, is per tier so each MIN() is one primary-key seek.
-    qint64 since = 0;
-    bool ok_first = false;
-    qint64 first = config_value(QStringLiteral("types_since"), QString()).toLongLong(&ok_first);
-    if (!ok_first && probe.exec(QStringLiteral(
-            "SELECT MIN(t) FROM ("
-            "  SELECT MIN(ts) AS t FROM type_samples WHERE res=60"
-            "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=3600"
-            "  UNION ALL SELECT MIN(ts) AS t FROM type_samples WHERE res=86400)")) &&
-        probe.next() && !probe.value(0).isNull()) {
-        first = probe.value(0).toLongLong();
-        ok_first = true;
-    }
-    if (ok_first && first > start) since = first;
-
-    double scale = 1.0;
-    if (tres != res && data_end > start) {
-        scale = std::clamp(double(to - from) / double(data_end - start), 0.0, 1.0);
-    }
-
+    if (!r.ok) warn("type totals query failed, emitting an empty table:", db_);
     QVector<TypeTotal> out;
-    bool ok = true;
-    QSqlQuery q(db_);
-    q.prepare(QStringLiteral(
-        "SELECT s.proto, s.port, SUM(s.rx), SUM(s.tx) "
-        "FROM type_samples s JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<=? AND i.kind IN ('physical','wifi','unknown') "
-        "GROUP BY s.proto, s.port HAVING SUM(s.rx) + SUM(s.tx) > 0"));
-    q.addBindValue(tres);
-    q.addBindValue(start);
-    q.addBindValue(to);
-    if (q.exec()) {
-        while (q.next()) {
-            TypeTotal t;
-            t.proto = q.value(0).toInt();
-            t.port = q.value(1).toInt();
-            t.rx = quint64(std::llround(double(q.value(2).toULongLong()) * scale));
-            t.tx = quint64(std::llround(double(q.value(3).toULongLong()) * scale));
-            out.push_back(t);
-        }
-    } else {
-        qWarning() << "bandsight: type totals query failed, emitting an empty"
-                   << "table:" << q.lastError().text();
-        ok = false;
-    }
-    emit typeTotals(out, true, since, ok);
+    out.reserve(qsizetype(r.totals.size()));
+    for (const core::TypeTotal& c : r.totals) out.push_back({c.proto, c.port, c.rx, c.tx});
+    emit typeTotals(out, true, r.since, r.ok);
 }
 
-namespace {
-quint64 sum_over(QSqlDatabase& db, int res, qint64 from, qint64 to,
-                 quint64& tx_out) {
-    QSqlQuery q(db);
-    q.prepare(QStringLiteral(
-        "SELECT COALESCE(SUM(s.rx),0), COALESCE(SUM(s.tx),0) "
-        "FROM iface_samples s JOIN ifaces i ON i.id = s.iface_id "
-        "WHERE s.res=? AND s.ts>=? AND s.ts<? "
-        "  AND i.kind IN ('physical','wifi')"));
-    q.addBindValue(res);
-    q.addBindValue(from);
-    q.addBindValue(to);
-    if (!q.exec() || !q.next()) return 0;
-    tx_out += q.value(1).toULongLong();
-    return q.value(0).toULongLong();
-}
-}  // namespace
-
-// Usage against the data cap (spec §7). Two tiers, not one, and that is the
-// whole difficulty: rollup_tier only writes CLOSED buckets, so the res=86400
-// tier's newest row is up to two days old - 34 hours on the development machine
-// when this was written. Summing dailies alone would under-report a monthly cap
-// by up to 7%, always in the direction of claiming more headroom than exists,
-// which is the one direction a cap indicator must never err in.
-//
-// So: whole closed days from res=86400, then everything after the last closed
-// day from res=60, which is retained for 30 days and therefore always covers the
-// tail. The boundary is taken from the data (MAX(ts) actually present) rather
-// than from the clock, so a lagging or stalled rollup shifts the split instead
-// of opening a hole.
+// Usage against the data cap (spec §7): see core::HistoryDb::quota for why it
+// reads two tiers.
 void HistoryStore::queryQuota(qint64 now) {
+    const core::Quota q = db_.quota(now);
     QuotaInfo info;
-    info.cycle_day = config_int("cycle_start_day", 1);
-    info.cap = config_u64("cap_bytes", 0);
-
-    const Cycle c = cycle_for(now, info.cycle_day);
-    info.cycle_start = c.start;
-    info.cycle_end = c.end;
-
-    qint64 boundary = c.start;
-    {
-        QSqlQuery q(db_);
-        q.prepare(QStringLiteral(
-            "SELECT MAX(ts) FROM iface_samples WHERE res=86400 AND ts>=? AND ts<?"));
-        q.addBindValue(qint64(c.start));
-        q.addBindValue(now);
-        // The day after the last closed one, by the daemon's own bucket
-        // rule: + 86400 lands an hour early on a 25-hour day, counting that
-        // hour twice, and an hour late on a 23-hour day, missing it.
-        if (q.exec() && q.next() && !q.value(0).isNull())
-            boundary = bandsight::bucket_next(q.value(0).toLongLong(), 86400);
-    }
-
-    quint64 tx = 0;
-    quint64 rx = sum_over(db_, 86400, c.start, boundary, tx);
-    rx += sum_over(db_, 60, boundary, now + 1, tx);
-
-    // A cap counts what crossed the link, in both directions: an ISP does not
-    // bill upload separately.
-    info.used = rx + tx;
-    info.projected = project_to_cycle_end(info.used, c, now);
+    info.used = q.used;
+    info.cap = q.cap;
+    info.projected = q.projected;
+    info.cycle_start = q.cycle_start;
+    info.cycle_end = q.cycle_end;
+    info.cycle_day = q.cycle_day;
     emit quota(info);
-}
-
-QString HistoryStore::config_value(const QString& key, const QString& fallback) {
-    QSqlQuery q(db_);
-    q.prepare(QStringLiteral("SELECT value FROM config WHERE key=?"));
-    q.addBindValue(key);
-    if (q.exec() && q.next()) return q.value(0).toString();
-    return fallback;
-}
-
-quint64 HistoryStore::config_u64(const QString& key, quint64 fallback) {
-    bool ok = false;
-    const quint64 v = config_value(key, QString()).toULongLong(&ok);
-    return ok ? v : fallback;
-}
-
-int HistoryStore::config_int(const QString& key, int fallback) {
-    bool ok = false;
-    const int v = config_value(key, QString()).toInt(&ok);
-    return ok ? v : fallback;
 }
 
 }  // namespace bandsight::gui

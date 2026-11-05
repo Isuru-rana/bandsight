@@ -2,10 +2,10 @@
 #pragma once
 #include <QObject>
 #include <QSet>
-#include <QSqlDatabase>
 #include <QString>
 #include <QVector>
 
+#include "core/history_db.h"
 #include "frame_types.h"
 #include "quota.h"
 
@@ -14,12 +14,15 @@ namespace bandsight::gui {
 // Read-only reader for the daemon's database (spec §3). Moved to a worker
 // QThread by Task 10, so every slot below - including open() and the
 // destructor - runs on whichever thread owns the object. That is deliberate: a
-// QSqlDatabase connection must be opened, used and closed on one thread.
+// database handle is opened, used and closed on one thread.
+//
+// The queries themselves are core::HistoryDb's (core/history_db.h), shared with
+// the command-line client; this class is their Qt face - slots in, signals out,
+// Qt types on both.
 class HistoryStore : public QObject {
     Q_OBJECT
 public:
     explicit HistoryStore(QObject* parent = nullptr) : QObject(parent) {}
-    ~HistoryStore() override;
 
 public slots:
     void open(const QString& db_path);  // emits opened() or openFailed()
@@ -69,25 +72,11 @@ signals:
     void quota(QuotaInfo info);
 
 private:
-    // Drops our QSqlDatabase copy and unregisters the connection name, in that
-    // order - removeDatabase() warns loudly if any copy is still alive.
-    void closeDb();
+    // The host and type answers proper, from core's result to the signal.
+    void emitHostPairs(const core::HostPairs& r);
+    void emitTypeTotals(const core::TypeTotals& r);
 
-    // The host query proper. [from, to] is the period asked for; data_end is
-    // where the newest host row's data actually ends. Seconds-tier periods are
-    // prorated from whole-minute rows to the period's length.
-    void emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res);
-    // The type query, with the same arguments as emitHostPairs.
-    void emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int res);
-
-    // The config table is read here, never written - the GUI's handle is
-    // read-only and writes go through the daemon's set_config command.
-    QString config_value(const QString& key, const QString& fallback);
-    quint64 config_u64(const QString& key, quint64 fallback);
-    int config_int(const QString& key, int fallback);
-
-    QSqlDatabase db_;
-    QString conn_name_;
+    core::HistoryDb db_;
 };
 
 }  // namespace bandsight::gui
