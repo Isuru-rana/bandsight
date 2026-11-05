@@ -72,6 +72,16 @@ target_link_libraries(bandsightd PRIVATE bandsight_core)
 
 include(GNUInstallDirs)
 
+# The command-line client. bandsight_common only: no Qt, no BPF, so it builds
+# and runs on a headless machine (-DBANDSIGHT_BUILD_GUI=OFF).
+add_library(bandsight_cli STATIC cli/args.cpp cli/output.cpp cli/daemon_socket.cpp
+            cli/commands.cpp)
+target_include_directories(bandsight_cli PUBLIC ${CMAKE_SOURCE_DIR}/cli
+                           ${CMAKE_BINARY_DIR}/generated)
+target_link_libraries(bandsight_cli PUBLIC bandsight_common)
+add_executable(bandsight-cli cli/main.cpp)
+target_link_libraries(bandsight-cli PRIVATE bandsight_cli)
+
 # Substitutes @BANDSIGHT_BINDIR@ in TEMPLATE and installs the result as NAME
 # under DEST, doing both at install time so the path reflects the prefix the
 # install is actually using rather than the one configure saw. DEST may be
