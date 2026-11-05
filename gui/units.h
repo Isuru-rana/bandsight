@@ -10,7 +10,7 @@ namespace bandsight::gui {
 // through every call site: it is a display choice that must be identical
 // everywhere at once, and a per-widget copy is exactly how a graph ends up
 // disagreeing with the table beside it.
-enum class RateUnit { Bits, Bytes };     // Mbit/s | MB/s
+enum class RateUnit { Bits, Bytes };     // Mb/s | MB/s
 enum class VolumeUnit { Decimal, Binary };  // GB (10^9) | GiB (2^30)
 
 void set_rate_unit(RateUnit u);
@@ -18,6 +18,6 @@ void set_volume_unit(VolumeUnit u);
 RateUnit rate_unit();
 VolumeUnit volume_unit();
 
-QString format_rate(quint64 bytes_per_s);   // kbit/s | Mbit/s | Gbit/s, or /s bytes
+QString format_rate(quint64 bytes_per_s);   // kb/s | Mb/s | Gb/s (bits), or kB/s | MB/s | GB/s
 QString format_volume(quint64 bytes);       // B | kB | MB | GB | TB, or KiB | MiB…
 }  // namespace bandsight::gui

@@ -79,6 +79,13 @@ int main(int argc, char** argv) {
     CHECK(app_version() == QStringLiteral(BANDSIGHT_TEST_PROJECT_VERSION));
     CHECK(about_title() == QStringLiteral("Bandsight " BANDSIGHT_TEST_PROJECT_VERSION));
 
+    // --- bit rates read as the setting names them: kb/s, Mb/s, Gb/s ----------
+    CHECK(format_rate(0) == QStringLiteral("0 kb/s"));
+    CHECK(format_rate(1'000) == QStringLiteral("8.0 kb/s"));
+    CHECK(format_rate(1'500'000) == QStringLiteral("12.0 Mb/s"));
+    CHECK(format_rate(250'000'000) == QStringLiteral("2.00 Gb/s"));
+    CHECK(!format_rate(1'500'000).contains(QStringLiteral("bit")));
+
     // --- a unit switch reaches live widgets without being re-fed --------------
     QuotaBar quota;
     QuotaInfo q;
@@ -113,7 +120,7 @@ int main(int argc, char** argv) {
     SampleFrame f;
     f.ifaces = {{2, 1'500'000, 125'000}};
     tray.onSample(f);
-    CHECK(tray.icon()->toolTip().contains(QStringLiteral("12.0 Mbit/s")));
+    CHECK(tray.icon()->toolTip().contains(QStringLiteral("12.0 Mb/s")));
 
     a.setVolumeUnit(VolumeUnit::Binary);
     CHECK(quota.text().startsWith(QStringLiteral("2.79 GiB")));
@@ -128,7 +135,7 @@ int main(int argc, char** argv) {
     a.setRateUnit(RateUnit::Bits);
     a.setVolumeUnit(VolumeUnit::Decimal);
     CHECK(quota.text().startsWith(QStringLiteral("3.00 GB")));
-    CHECK(tray.icon()->toolTip().contains(QStringLiteral("12.0 Mbit/s")));
+    CHECK(tray.icon()->toolTip().contains(QStringLiteral("12.0 Mb/s")));
 
     // --- themes ---------------------------------------------------------------
     Card card(QStringLiteral("Total"));

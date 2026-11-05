@@ -22,10 +22,10 @@ QString format_rate(quint64 bytes_per_s) {
         return QString::number(b / 1e3, 'f', 1) + " kB/s";
     }
     const double bits = double(bytes_per_s) * 8.0;   // the ONLY factor-of-8 in the codebase
-    if (bits >= 1e9) return QString::number(bits / 1e9, 'f', 2) + " Gbit/s";
-    if (bits >= 1e6) return QString::number(bits / 1e6, 'f', 1) + " Mbit/s";
-    if (bits == 0.0) return QStringLiteral("0 kbit/s");
-    return QString::number(bits / 1e3, 'f', 1) + " kbit/s";
+    if (bits >= 1e9) return QString::number(bits / 1e9, 'f', 2) + " Gb/s";
+    if (bits >= 1e6) return QString::number(bits / 1e6, 'f', 1) + " Mb/s";
+    if (bits == 0.0) return QStringLiteral("0 kb/s");
+    return QString::number(bits / 1e3, 'f', 1) + " kb/s";
 }
 
 QString format_volume(quint64 bytes) {
