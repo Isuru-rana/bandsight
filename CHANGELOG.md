@@ -3,6 +3,21 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
+## [Unreleased]
+
+### Added
+- `bandsight-cli`: terminal client for headless machines, no Qt
+- `bandsight-cli` commands: `status`, `apps`, `hosts`, `types`, `ifaces`, `live`
+- Periods `5m` to `30d`, `cycle`, `--from`/`--to`
+- `--json` on every command: raw byte counts, ISO 8601 times
+- `--bytes`, `--binary`, `--limit`, `--app`, `--all`, `--interval`, `--count`
+- Colour and bars on a terminal only; `NO_COLOR` honoured
+- Exit codes: 0 ok, 1 runtime error, 2 usage error
+- Shared Qt-free query library (`core/`) used by the GUI and the CLI
+
+### Changed
+- GUI history queries run on the shared library; same SQL, same results
+
 ## [0.5.0] - 2026-11-05
 
 ### Added
