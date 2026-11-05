@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// The QtSql HistoryStore exactly as it was before it moved onto
+// core::HistoryDb, renamed and kept only as the reference test_query_parity
+// compares the new one against. Not built into anything shipped.
+#pragma once
+#include <QObject>
+#include <QSet>
+#include <QSqlDatabase>
+#include <QString>
+#include <QVector>
+
+#include "frame_types.h"
+#include "quota.h"
+#include "history_store.h"   // the metatype declarations
+
+namespace bandsight::legacy {
+using namespace bandsight::gui;
+
+// Read-only reader for the daemon's database (spec §3). Moved to a worker
+// QThread by Task 10, so every slot below - including open() and the
+// destructor - runs on whichever thread owns the object. That is deliberate: a
+// QSqlDatabase connection must be opened, used and closed on one thread.
+class LegacyHistoryStore : public QObject {
+    Q_OBJECT
+public:
+    explicit LegacyHistoryStore(QObject* parent = nullptr) : QObject(parent) {}
+    ~LegacyHistoryStore() override;
+
+public slots:
+    void open(const QString& db_path);  // emits opened() or openFailed()
+    void querySeries(Window w, QSet<int> ifindexes, qint64 now);
+    void queryIfaceTotals(Window w, qint64 now);
+    void queryAppTotals(Window w, qint64 now);
+    void queryQuota(qint64 now);
+
+    // Totals for an arbitrary span, for the timeline's range selection. Same
+    // signals as the window-based queries, so nothing downstream learns that a
+    // selection exists - a sub-range is still just "the totals on screen".
+    void queryIfaceTotalsRange(qint64 from, qint64 to, int res);
+    void queryAppTotalsRange(qint64 from, qint64 to, int res);
+
+    // (app, host) pairs for the Hosts column. Host rows are minute-grained, so a
+    // seconds-tier window or selection is widened to whole minutes, and the
+    // current minute - written live by the daemon - is included.
+    void queryHostTotals(Window w, qint64 now);
+    void queryHostTotalsRange(qint64 from, qint64 to, int res);
+
+    // Bytes per service for the Traffic type column. Minute-grained like the
+    // host rows, and widened and prorated the same way.
+    void queryTypeTotals(Window w, qint64 now);
+    void queryTypeTotalsRange(qint64 from, qint64 to, int res);
+
+signals:
+    // Both carry the path they refer to. Without it a caller cannot tell a reply
+    // to its current open from a reply to one it superseded, which is B5: two
+    // opens can be outstanding when the daemon names a different database.
+    void opened(const QString& db_path);
+    void openFailed(const QString& db_path, const QString& reason);  // + SQLite's message
+    void series(Window w, QVector<SeriesPoint> points);
+    void ifaceTotals(QVector<IfaceTotal> totals);
+    // ok=false: the query failed and totals is empty, which is not the same
+    // as "no application moved anything" (a degraded daemon, BPF not loaded).
+    void appTotals(QVector<AppTotal> totals, bool ok);
+    // collected=false: the database predates host collection (no iface_id
+    // column) - an old daemon, not an idle network. since: when host recording
+    // began, if that is inside the period (0 otherwise) - app history is older
+    // than host history, so the two cannot be compared before it.
+    void hostPairs(QVector<AppHostTotal> pairs, bool collected, qint64 since);
+    // collected=false: no type_samples table (only a daemon older than the
+    // Traffic type column has touched the database). since: when type
+    // recording began, if that is inside the period (0 otherwise). ok=false:
+    // the query failed and totals is empty, which is not an idle period.
+    void typeTotals(QVector<TypeTotal> totals, bool collected, qint64 since, bool ok);
+    void quota(QuotaInfo info);
+
+private:
+    // Drops our QSqlDatabase copy and unregisters the connection name, in that
+    // order - removeDatabase() warns loudly if any copy is still alive.
+    void closeDb();
+
+    // The host query proper. [from, to] is the period asked for; data_end is
+    // where the newest host row's data actually ends. Seconds-tier periods are
+    // prorated from whole-minute rows to the period's length.
+    void emitHostPairs(qint64 from, qint64 to, qint64 data_end, int res);
+    // The type query, with the same arguments as emitHostPairs.
+    void emitTypeTotals(qint64 from, qint64 to, qint64 data_end, int res);
+
+    // The config table is read here, never written - the GUI's handle is
+    // read-only and writes go through the daemon's set_config command.
+    QString config_value(const QString& key, const QString& fallback);
+    quint64 config_u64(const QString& key, quint64 fallback);
+    int config_int(const QString& key, int fallback);
+
+    QSqlDatabase db_;
+    QString conn_name_;
+};
+
+}  // namespace bandsight::legacy
+

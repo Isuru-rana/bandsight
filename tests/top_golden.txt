@@ -1,0 +1,377 @@
+### 24 hours, apps focused (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### a wide, tall terminal (120x40)
+|Bandsight  bandsightd 0.5.0 running                                                                  2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                                                               |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026                                                     |
+|                                                                                                                        |
+|Last 60 s                                                                                                               |
+|down █▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s                                      |
+|up   ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s                                      |
+|                                                                                                                        |
+|▶ 1 Applications  last 24 hours                                                                                         |
+| APPLICATION                   DOWN         UP                                                                          |
+| Firefox                   656.5 MB    13.3 MB  ███████████████████████████████████████░                                |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████████░                                                          |
+| ssh                        15.2 MB    93.8 MB  █░░░░░░                                                                 |
+| Spotify                    84.0 MB     1.2 MB  █████░                                                                  |
+| curl                       26.0 MB   310.0 kB  ██░                                                                     |
+| tailscaled                  8.4 MB     7.9 MB  █░                                                                      |
+| node (usr/bin)              3.3 MB   120.0 kB  █░                                                                      |
+| chronyd                     9.0 kB     9.0 kB  █░                                                                      |
+| Unattributed              421.0 MB    21.1 MB  █████████████████████████░                                              |
+|  2 Hosts  last 24 hours                                                                                       1-8 of 9 |
+| HOST                          DOWN         UP                                                                          |
+| one.one.one.one           644.5 MB    12.7 MB  ███████████████████████████████████████░                                |
+| registry.npmjs.org        213.3 MB     4.3 MB  █████████████░                                                          |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░░░                                                                 |
+| spclient.wg.spotify.com    84.0 MB     1.2 MB  █████░                                                                  |
+| 151.101.1.69               27.3 MB   335.0 kB  ██░                                                                     |
+| No peer address             8.4 MB     7.9 MB  █░                                                                      |
+| www.google.com             12.0 MB   640.0 kB  █░                                                                      |
+| time.cloudflare.com         9.0 kB     9.0 kB  █░                                                                      |
+|  3 Traffic types  last 24 hours                                                                                        |
+| SERVICE                       DOWN         UP                                                                          |
+| QUIC                      644.5 MB    12.7 MB  ███████████████████████████████████████░                                |
+| HTTPS                     336.6 MB     6.5 MB  ████████████████████░                                                   |
+| SSH                        15.2 MB    93.8 MB  █░░░░░░                                                                 |
+| Other                       8.4 MB     7.9 MB  █░                                                                      |
+| NTP                         9.0 kB     9.0 kB  █░                                                                      |
+|                                                                                                                        |
+|                                                                                                                        |
+|                                                                                                                        |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit                                                 |
+
+### hosts focused (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|  1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|▶ 2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### apps scrolled to the end (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        7-9 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| node (usr/bin)              3.3 MB   120.0 kB  █░                              |
+| chronyd                     9.0 kB     9.0 kB  █░                              |
+| Unattributed              421.0 MB    21.1 MB  ███████████████████░            |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### MB/s (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down   19.6 MB/s   up   16.0 kB/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 22.5 MB/s  |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 24.5 kB/s  |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (MB/s)  ↑↓ j/k scroll  q quit         |
+
+### period 5m (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications  last 5 minutes                                                |
+| APPLICATION           DOWN         UP                                          |
+| Firefox            16.5 MB   850.0 kB  ████████████████████████████████████░░  |
+| ssh               220.0 kB     1.8 MB  █░░░░                                   |
+| curl                1.3 MB    25.0 kB  ███░                                    |
+|  2 Hosts  last 5 minutes                                              1-3 of 5 |
+| HOST                  DOWN         UP                                          |
+| www.google.com     10.9 MB   581.8 kB  ████████████████████████████████████░░  |
+| one.one.one.one     4.1 MB   190.9 kB  ██████████████░                         |
+| 192.168.1.10      200.0 kB     1.6 MB  █░░░░░                                  |
+|  3 Traffic types  last 5 minutes                                               |
+| SERVICE               DOWN         UP                                          |
+| HTTPS              12.0 MB   604.5 kB  ████████████████████████████████████░░  |
+| QUIC                4.1 MB   190.9 kB  ████████████░                           |
+| SSH               200.0 kB     1.6 MB  █░░░░░                                  |
+| 1/2/3 Tab panel  p period (5m)  b units (Mb/s)  ↑↓ j/k scroll  q quit          |
+
+### period 30d (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications  last 30 days                                        1-3 of 12 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                    5.11 GB    87.3 MB  █████████████████████████████░  |
+| apt                       780.0 MB     2.1 MB  █████░                          |
+| Spotify                   494.0 MB    10.2 MB  ███░                            |
+|  2 Hosts  last 30 days, recorded since 2026-10-16 00:00              1-3 of 11 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one            3.84 GB    53.7 MB  █████████████████████████████░  |
+| www.google.com             1.26 GB    33.6 MB  ██████████░                     |
+| archive.ubuntu.com        780.0 MB     2.1 MB  ██████░                         |
+|  3 Traffic types  last 30 days, recorded since 2026-10-16 12:00       1-3 of 7 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                       3.84 GB    53.7 MB  █████████████████████████████░  |
+| HTTPS                      2.09 GB    50.0 MB  ████████████████░               |
+| HTTP                      780.0 MB     2.1 MB  ██████░                         |
+| 1/2/3 Tab panel  p period (30d)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### period cycle (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications  this billing cycle                                  1-3 of 11 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  this billing cycle                                         1-3 of 11 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        308.3 MB     5.8 MB  ██████████████░                 |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  this billing cycle                                  1-3 of 6 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     431.6 MB     8.0 MB  ████████████████████░           |
+| SSH                        76.2 MB   101.2 MB  ███░░░░░                        |
+| 1/2/3 Tab panel  p period (cycle)  b units (Mb/s)  ↑↓ j/k scroll  q quit       |
+
+### daemon not running (80x24)
+|Bandsight  bandsightd is not running - history only          2026-11-05 12:00:30|
+|Now     no live rates                                                           |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down no live data while bandsightd is not running                               |
+|up                                                                              |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### waiting for the first sample (80x24)
+|Bandsight  bandsightd running                                2026-11-05 12:00:30|
+|Now     waiting for the first sample                                            |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down waiting for samples                                                        |
+|up                                                                              |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+| 192.168.1.10               15.2 MB    93.8 MB  █░░░░                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| SSH                        15.2 MB    93.8 MB  █░░░░                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### short terminal (80x18)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|▶ 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  █████████████████████████████░  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  █████████░                      |
+| ssh                        15.2 MB    93.8 MB  █░░░░                           |
+|  2 Hosts  last 24 hours                                               1-2 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  █████████████████████████████░  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ██████████░                     |
+|  3 Traffic types  last 24 hours                                       1-2 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  █████████████████████████████░  |
+| HTTPS                     336.6 MB     6.5 MB  ███████████████░                |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+
+### one panel fits (60x13)
+|Bandsight  bandsightd 0.5.0 running      2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                   |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 …|
+|                                                            |
+|▶ 3 Traffic types  last 24 hours                            |
+| SERVICE                       DOWN         UP              |
+| QUIC                      644.5 MB    12.7 MB  █████████░  |
+| HTTPS                     336.6 MB     6.5 MB  █████░      |
+| SSH                        15.2 MB    93.8 MB  █░          |
+| Other                       8.4 MB     7.9 MB  █░          |
+| NTP                         9.0 kB     9.0 kB  █░          |
+|                                                            |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k sc…|
+
+### too small (40x12)
+|                                        |
+|                                        |
+|                                        |
+|                                        |
+|                                        |
+|                                        |
+|Terminal too small: needs 50x12, q quits|
+|                                        |
+|                                        |
+|                                        |
+|                                        |
+|                                        |
+
+### ASCII (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   1.78 GB of 100.00 GB (1%), projected 11.89 GB by 1 Dec 2026             |
+|                                                                                |
+|Last 60 s                                                                       |
+|down *+=--::...........::--=+*##@##*+=--::...........::--=+*##  peak 180.0 Mb/s |
+|up   *#@.:-+*#@ :-=*#@ :-=*#@.:-+*#@ :-=*#@ :-=*#@.:-+*#@ :-=*  peak 196.0 kb/s |
+|                                                                                |
+|> 1 Applications  last 24 hours                                        1-3 of 9 |
+| APPLICATION                   DOWN         UP                                  |
+| Firefox                   656.5 MB    13.3 MB  #############################=  |
+| node (v24.1.0/bin)        210.0 MB     4.2 MB  #########=                      |
+| ssh                        15.2 MB    93.8 MB  #====                           |
+|  2 Hosts  last 24 hours                                               1-3 of 9 |
+| HOST                          DOWN         UP                                  |
+| one.one.one.one           644.5 MB    12.7 MB  #############################=  |
+| registry.npmjs.org        213.3 MB     4.3 MB  ##########=                     |
+| 192.168.1.10               15.2 MB    93.8 MB  #====                           |
+|  3 Traffic types  last 24 hours                                       1-3 of 5 |
+| SERVICE                       DOWN         UP                                  |
+| QUIC                      644.5 MB    12.7 MB  #############################=  |
+| HTTPS                     336.6 MB     6.5 MB  ###############=                |
+| SSH                        15.2 MB    93.8 MB  #====                           |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  Up/Dn j/k scroll  q quit      |
+
+### no database (80x24)
+|Bandsight  bandsightd 0.5.0 running                          2026-11-05 12:00:30|
+|Now     down  156.8 Mb/s   up  128.0 kb/s                                       |
+|Cycle   Cannot read the database.                                               |
+|                                                                                |
+|Last 60 s                                                                       |
+|down ▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇█▇▇▆▅▄▃▃▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▃▃▄▅▆▇▇  peak 180.0 Mb/s |
+|up   ▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆▇█ ▂▃▄▆▇█▁▂▃▅▆▇█ ▂▃▄▆  peak 196.0 kb/s |
+|                                                                                |
+|▶ 1 Applications                                                                |
+| APPLICATION          DOWN         UP                                           |
+| Cannot read /var/lib/bandsight/bandsight.db: add yourself to the 'bandsight'   |
+| group (sudo usermod -aG bandsight $USER), then log in again.                   |
+|                                                                                |
+|  2 Hosts                                                                       |
+| HOST                 DOWN         UP                                           |
+| No history to show.                                                            |
+|                                                                                |
+|                                                                                |
+|  3 Traffic types                                                               |
+| SERVICE              DOWN         UP                                           |
+| No history to show.                                                            |
+|                                                                                |
+|                                                                                |
+| 1/2/3 Tab panel  p period (24h)  b units (Mb/s)  ↑↓ j/k scroll  q quit         |
+

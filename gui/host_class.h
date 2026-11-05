@@ -9,6 +9,9 @@ namespace bandsight::gui {
 // (fc00::/7) and multicast (224/4, ff00::/8) - traffic that stays on the local
 // network. WAN: any other valid address. None: no peer address (unconnected
 // UDP) or text that is not an address - not counted on either side.
+//
+// The rule is core::host_zone (core/host_zone.h), shared with the
+// command-line client.
 enum class HostZone { None, Lan, Wan };
 
 HostZone host_zone(const QString& ip);
