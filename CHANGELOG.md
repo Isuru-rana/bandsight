@@ -3,6 +3,13 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
+## [Unreleased]
+
+### Changed
+- New icon and wordmark: vector, sharp edges, transparent backgrounds
+- App icon: dark rounded tile, simplified at 16-32 px, scalable SVG installed
+- APT page favicon
+
 ## [0.6.0] - 2026-11-05
 
 ### Added
