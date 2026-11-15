@@ -3,7 +3,10 @@
 What each release added, changed, fixed and removed. The section for a version
 is also the text of its [GitHub release](https://github.com/Isuru-rana/bandsight/releases).
 
-## [Unreleased]
+## [0.6.1] - 2026-11-15
+
+### Added
+- `bandsight-cli --version` and `--help`: the logo in braille on a UTF-8 terminal
 
 ### Changed
 - New icon and wordmark: vector, sharp edges, transparent backgrounds
