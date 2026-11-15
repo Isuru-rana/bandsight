@@ -59,9 +59,12 @@ gpg --batch --yes --armor --export "$KEY" > "$SITE/key.gpg"
 
 # GitHub Pages would otherwise run the tree through Jekyll.
 touch "$SITE/.nojekyll"
+BRAND="$(dirname "$0")/../../docs/branding"
+cp -f "$BRAND/favicon.ico" "$BRAND/apple-touch-icon.png" "$SITE/"
 cat > "$SITE/index.html" <<HTML
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Bandsight APT repository</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>Bandsight APT repository</title>
+<link rel="icon" href="favicon.ico"><link rel="apple-touch-icon" href="apple-touch-icon.png"></head>
 <body>
 <h1>Bandsight APT repository</h1>
 <p>Debian 12+ and Ubuntu 24.04+, amd64. Add the source once:</p>

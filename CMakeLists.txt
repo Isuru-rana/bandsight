@@ -203,15 +203,17 @@ if(BANDSIGHT_BUILD_GUI)
                                ${CMAKE_INSTALL_DATADIR}/applications)
   set_target_properties(bandsight PROPERTIES AUTOMOC ON AUTORCC ON)
 
-  # The app icon, pre-rendered from docs/branding/bandsight-icon-dark.png (the
-  # dark tile: the transparent light variant is a navy outline that vanishes on
-  # a dark panel). Named "bandsight" in hicolor so the launcher entry, the
+  # The app icon, rendered by docs/branding/generate.py as a dark rounded tile
+  # (the transparent marks vanish on one panel colour or the other), with
+  # simplified artwork at 16-32 px. Named "bandsight" in hicolor so the launcher entry, the
   # Wayland window (matched via the desktop file name) and the tray all resolve
   # it from the theme; the qrc copy covers running from the build tree.
   foreach(size 16 22 24 32 48 64 128 256 512)
     install(FILES packaging/icons/hicolor/${size}x${size}/apps/bandsight.png
             DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}x${size}/apps)
   endforeach()
+  install(FILES packaging/icons/hicolor/scalable/apps/bandsight.svg
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 
 endif()
 
