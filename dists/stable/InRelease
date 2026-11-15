@@ -5,20 +5,20 @@ Origin: Bandsight
 Label: Bandsight
 Suite: stable
 Codename: stable
-Date: Thu, 05 Nov 2026 08:36:48 +0000
+Date: Sun, 15 Nov 2026 06:54:42 +0000
 Architectures: amd64
 Components: main
 Description: Bandsight network usage monitor
 MD5Sum:
- 52075ef3a3eedbc35edb3863b0eeaf1a             3937 main/binary-amd64/Packages
- fb29912641d308982a0b39eaef4def3b              982 main/binary-amd64/Packages.gz
+ 98289ce0adfb54a376a0452769fdc8bd             4726 main/binary-amd64/Packages
+ eefd70efcd4ac30077c993e376b3e1b4             1091 main/binary-amd64/Packages.gz
 SHA256:
- 1484945b05a52689fe05d8ace3a1c0bd67212726b77c6b32f2386520033fa603             3937 main/binary-amd64/Packages
- 96a9ab38bec130c5dfa12be8cdd14a8ffc48a8844d88d8cd0cd768c4c8d8db7d              982 main/binary-amd64/Packages.gz
+ 07100e0d98d092301c6c9be07e0313b94e59881737995e38971dc67540c69717             4726 main/binary-amd64/Packages
+ 857e83d06859dd6a1ea199b53d594faefdec2e4e706e87cd4ad4d8ee9f01c99b             1091 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCauxAIAAKCRC0NUXfBE9R
-WKlvAQCh2s6tmQZJ/1Fcvs3mtLiBmt51Y6Is38l/HTuyQWKq6AD/c90zy2X9ZDEI
-ODwioMZX4Hjhcz5dAO21aLQwpbCv1Ak=
-=/KRw
+iHUEARYKAB0WIQSqrx7mrSEaB0GCbfG0NUXfBE9RWAUCavlXMgAKCRC0NUXfBE9R
+WH1QAQCJSCkwEAEJYI07k3SGEv29+KoGCM9chTW/z0zPunHtvwEA2Cg4SVFzbuvv
+dgpYRzoIK/Z2cJYACFmeQDPxHzoCkA8=
+=pyiO
 -----END PGP SIGNATURE-----
