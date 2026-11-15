@@ -99,7 +99,7 @@ def svg(w, h, body, view=None):
     )
 
 
-def tile(small=False, pad=0.82):
+def tile(small=False, pad=1.09):
     """App icon: the white mark on a dark rounded square, so it reads on both
     light and dark panels and menus."""
     s = pad
@@ -107,6 +107,19 @@ def tile(small=False, pad=0.82):
     return (
         f'<rect width="560" height="560" rx="124" fill="{TILE}"/>'
         f'<g transform="translate({off:.2f} {off:.2f}) scale({s})">{mark(WHITE, small)}</g>'
+    )
+
+
+def badge(fg=WHITE, back=TILE, edge=48):
+    """The mark on an eye-shaped backing that follows the outline with a thick
+    margin, sharp at the tips like the eye itself. Transparent outside."""
+    s = 0.84
+    off = C * (1 - s)
+    return (
+        f'<g transform="translate({off:.2f} {off:.2f}) scale({s})">'
+        f'<path d="{lens(EYE_OUTER)}" fill="{back}" stroke="{back}" '
+        f'stroke-width="{edge * 2}" stroke-linejoin="miter" stroke-miterlimit="10"/>'
+        f'{mark(fg)}</g>'
     )
 
 
@@ -205,10 +218,13 @@ def main():
     write(j("bandsight-icon-small.svg"), svg(560, 560, mark(NAVY, True)))
     write(j("bandsight-icon-small-dark.svg"), svg(560, 560, mark(WHITE, True)))
     write(j("bandsight-app-icon.svg"), svg(560, 560, tile()))
-    write(j("bandsight-app-icon-small.svg"), svg(560, 560, tile(True, 0.92)))
-    write(j("bandsight-app-icon-micro.svg"), svg(560, 560, tile("micro", 0.96)))
+    write(j("bandsight-icon-badge.svg"), svg(560, 560, badge()))
+    write(j("bandsight-app-icon-small.svg"), svg(560, 560, tile(True, 1.09)))
+    write(j("bandsight-app-icon-micro.svg"), svg(560, 560, tile("micro", 1.09)))
     png(j("bandsight-icon.svg"), j("bandsight-icon.png"), 1024)
     png(j("bandsight-icon-dark.svg"), j("bandsight-icon-dark.png"), 1024)
+    png(j("bandsight-app-icon.svg"), j("bandsight-app-icon.png"), 1024)
+    png(j("bandsight-icon-badge.svg"), j("bandsight-icon-badge.png"), 1024)
 
     # Wordmarks.
     write(j("bandsight-logo.svg"), wordmark(font, NAVY))
@@ -246,7 +262,7 @@ def main():
         subprocess.run(["magick", *icos, j("favicon.ico")], check=True)
         at = os.path.join(tmp, "at.svg")
         write(at, svg(180, 180, f'<rect width="180" height="180" fill="{TILE}"/>'
-                      f'<g transform="translate(14 14) scale({152 / 560:.5f})">{mark(WHITE)}</g>'))
+                      f'<g transform="translate(3 3) scale({174 / 560:.5f})">{mark(WHITE)}</g>'))
         png(at, j("apple-touch-icon.png"), 180)
 
     # hicolor theme icons for the launcher, window and tray.
