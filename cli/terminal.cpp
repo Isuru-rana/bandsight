@@ -5,6 +5,8 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cctype>
+#include <cstdlib>
 #include <cerrno>
 #include <cstring>
 
@@ -78,5 +80,15 @@ bool Terminal::size(int& cols, int& rows) const {
 }
 
 void Terminal::write(const std::string& s) const { write_all(out_, s.data(), s.size()); }
+
+bool utf8_locale() {
+    const char* v = nullptr;
+    for (const char* name : {"LC_ALL", "LC_CTYPE", "LANG"})
+        if ((v = std::getenv(name)) && *v) break;
+    if (!v || !*v) return false;
+    std::string s;
+    for (const char* p = v; *p; ++p) s += char(std::tolower(static_cast<unsigned char>(*p)));
+    return s.find("utf-8") != std::string::npos || s.find("utf8") != std::string::npos;
+}
 
 }  // namespace bandsight::cli

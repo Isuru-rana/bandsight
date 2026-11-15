@@ -50,16 +50,6 @@ void err(const std::string& s) {
     std::fputc('\n', stderr);
 }
 
-// Unicode blocks unless the locale says the terminal cannot show them.
-bool utf8_locale() {
-    const char* v = nullptr;
-    for (const char* name : {"LC_ALL", "LC_CTYPE", "LANG"})
-        if ((v = std::getenv(name)) && *v) break;
-    if (!v || !*v) return false;
-    std::string s;
-    for (const char* p = v; *p; ++p) s += char(std::tolower(static_cast<unsigned char>(*p)));
-    return s.find("utf-8") != std::string::npos || s.find("utf8") != std::string::npos;
-}
 
 // Installs a handler for as long as it lives, and puts the old one back.
 class ScopedSignal {

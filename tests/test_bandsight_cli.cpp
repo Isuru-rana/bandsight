@@ -536,12 +536,14 @@ void parsing() {
 }
 
 // Runs the CLI on a pseudo-terminal, as a person at a shell would.
-std::string run_pty(const std::vector<std::string>& args, bool no_color) {
+std::string run_pty(const std::vector<std::string>& args, bool no_color,
+                    const std::vector<std::string>& extra_env = {}) {
     int master = -1;
     const pid_t pid = ::forkpty(&master, nullptr, nullptr, nullptr);
     if (pid == 0) {
         std::vector<std::string> env{"TZ=UTC", "TERM=xterm", "BANDSIGHT_CLI_NOW=" + std::to_string(kFixtureNow)};
         if (no_color) env.push_back("NO_COLOR=1");
+        for (const auto& e : extra_env) env.push_back(e);
         std::vector<char*> envp, argv;
         for (auto& e : env) envp.push_back(e.data());
         envp.push_back(nullptr);
@@ -574,6 +576,19 @@ void terminal_checks(const std::string& db) {
     CHECK(run({"apps", "--db", db}, false, {}).out.find('\033') == std::string::npos);
     const std::string json = run_pty({"apps", "--json", "--db", db}, false);
     CHECK(json.find('\033') == std::string::npos && json.find("\"command\":\"apps\"") != std::string::npos);
+
+    // The braille logo: on a UTF-8 terminal only, cyan arcs unless NO_COLOR.
+    const std::string braille = "\u28FF";   // a full cell; the eye's outline has several
+    const std::vector<std::string> utf8{"LANG=en_US.UTF-8"};
+    const std::string ver = run_pty({"--version"}, false, utf8);
+    CHECK(ver.find(braille) != std::string::npos && ver.find("\033[38;5;45m") != std::string::npos);
+    CHECK(ver.find("bandsight-cli " BANDSIGHT_TEST_PROJECT_VERSION) != std::string::npos);
+    const std::string ver_plain = run_pty({"--version"}, true, utf8);
+    CHECK(ver_plain.find(braille) != std::string::npos && ver_plain.find('\033') == std::string::npos);
+    CHECK(run_pty({"--help"}, false, utf8).find(braille) != std::string::npos);
+    CHECK(run_pty({"apps", "--help"}, false, utf8).find(braille) == std::string::npos);
+    // No UTF-8 locale: the plain line, as in a pipe.
+    CHECK(run_pty({"--version"}, false, {"LC_ALL=C"}).find(braille) == std::string::npos);
 }
 
 // --- top -------------------------------------------------------------------------

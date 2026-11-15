@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "args.h"
+#include "logo.h"
 
 #include <cctype>
 #include <cmath>
@@ -299,6 +300,38 @@ std::optional<Period> resolve_period(const Options& o, std::int64_t now, int cyc
     p.from = now - n->range_s;
     p.to = now;
     return p;
+}
+
+std::string logo_banner(bool color) {
+    const std::string side[logo::kRows] = {
+        "", "", "",
+        color ? "\033[1mBandsight\033[0m" : "Bandsight",
+        std::string("bandsight-cli ") + BANDSIGHT_VERSION,
+        "Network usage per application",
+    };
+    std::string out;
+    for (int r = 0; r < logo::kRows; ++r) {
+        // Cells are 3-byte UTF-8 braille or a 1-byte space; walk both together.
+        const char* cell = logo::kCells[r];
+        const char* mask = logo::kCyan[r];
+        bool in_cyan = false;
+        std::string row;
+        for (int c = 0; c < logo::kCols && *cell; ++c, ++mask) {
+            const int len = (static_cast<unsigned char>(*cell) < 0x80) ? 1 : 3;
+            const bool cyan = color && *mask == 'c';
+            if (cyan != in_cyan) {
+                row += cyan ? "\033[38;5;45m" : "\033[0m";
+                in_cyan = cyan;
+            }
+            row.append(cell, std::size_t(len));
+            cell += len;
+        }
+        if (in_cyan) row += "\033[0m";
+        if (r < int(sizeof side / sizeof side[0]) && !side[r].empty()) row += "   " + side[r];
+        while (!row.empty() && row.back() == ' ') row.pop_back();
+        out += row + "\n";
+    }
+    return out;
 }
 
 std::string version_text() { return std::string("bandsight-cli ") + BANDSIGHT_VERSION + "\n"; }

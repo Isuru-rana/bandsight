@@ -874,12 +874,17 @@ int run(const std::vector<std::string>& argv, const Env& env) {
         err(why);
         return kExitUsage;
     }
+    // The logo only where a person is looking: a UTF-8 terminal. A pipe or a
+    // script still gets exactly the plain text.
+    const bool logo = env.tty && env.utf8;
+    const bool color = logo && !env.no_color;
     if (o->help) {
+        if (logo && o->command == Command::None) out(logo_banner(color) + "\n");
         out(help_text(o->command));
         return kExitOk;
     }
     if (o->version) {
-        out(version_text());
+        out(logo ? logo_banner(color) : version_text());
         return kExitOk;
     }
     Ctx c{*o, env, Style{env.tty && !env.no_color && !o->json},

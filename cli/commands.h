@@ -22,6 +22,7 @@ constexpr int kExitUsage = 2;
 struct Env {
     bool tty = false;        // stdout is a terminal
     bool no_color = false;   // NO_COLOR set, or TERM=dumb
+    bool utf8 = false;       // the locale is UTF-8 (braille logo on --version/--help)
     std::int64_t now = 0;    // the clock history periods are measured from
     bool clock_fixed = false;   // `now` is fixed (tests): top does not advance it
 };

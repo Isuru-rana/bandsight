@@ -75,5 +75,9 @@ std::optional<Period> resolve_period(const Options& o, std::int64_t now, int cyc
 
 std::string help_text(Command c);   // Command::None: the overview
 std::string version_text();
+// The brand mark in braille beside the name, version and a tagline, for
+// --version and the overview --help on a UTF-8 terminal. `color` draws the
+// signal arcs in the accent cyan and the name in bold.
+std::string logo_banner(bool color);
 
 }  // namespace bandsight::cli

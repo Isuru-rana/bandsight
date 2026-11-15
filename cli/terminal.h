@@ -47,6 +47,10 @@ private:
     volatile bool active_ = false;
 };
 
+// Whether the locale (LC_ALL, LC_CTYPE, then LANG) says UTF-8: the terminal
+// can show unicode blocks and braille.
+bool utf8_locale();
+
 // Raw mode as enter() sets it, from the settings it started with.
 termios raw_mode(const termios& from);
 

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "commands.h"
+#include "terminal.h"
 
 namespace {
 void on_signal(int) { bandsight::cli::request_stop(); }
@@ -28,6 +29,7 @@ int main(int argc, char** argv) {
     env.tty = ::isatty(STDOUT_FILENO) == 1;
     const char* term = std::getenv("TERM");
     env.no_color = std::getenv("NO_COLOR") != nullptr || (term && std::strcmp(term, "dumb") == 0);
+    env.utf8 = bandsight::cli::utf8_locale();
     env.now = std::int64_t(std::time(nullptr));
     // For the test suite only: measure periods from a fixed clock, so output
     // against a fixture database is reproducible. Not documented on purpose.
